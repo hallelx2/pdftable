@@ -66,6 +66,32 @@ type Page interface {
 	// cheaper than calling each accessor separately because the
 	// content stream is parsed exactly once.
 	Objects() (Objects, error)
+
+	// Words extracts positioned text runs from the page. A "word"
+	// is a contiguous group of chars whose horizontal gaps are
+	// within WordOpts.XTolerance and whose vertical positions
+	// agree within WordOpts.YTolerance. Pass DefaultWordOpts() to
+	// use pdfplumber-matching defaults. See WordOpts for the full
+	// configuration surface.
+	//
+	// Returns an empty slice (not nil) when the page contains no
+	// extractable text.
+	Words(opts WordOpts) ([]Word, error)
+
+	// ExtractText returns the page's text as a single string. By
+	// default words on the same line are joined with a single
+	// space and lines are joined with "\n". When TextOpts.Layout is
+	// true, the output preserves spatial layout (column-aligned
+	// text, blank lines for vertical gaps) at the cost of more
+	// whitespace. Pass DefaultTextOpts() for pdfplumber-matching
+	// defaults.
+	ExtractText(opts TextOpts) (string, error)
+
+	// ExtractTextSimple is a no-frills extraction that clusters
+	// chars by visual line and joins them by gap detection. Use
+	// when ExtractText's word-grouping heuristics produce undesired
+	// results on adversarial input.
+	ExtractTextSimple(xTolerance, yTolerance float64) (string, error)
 }
 
 // page is the unexported implementation backing the Page interface.

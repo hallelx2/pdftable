@@ -1,0 +1,31 @@
+{
+  "name": "hello",
+  "pages": [
+    {
+      "number": 1,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Hello, world!",
+      "extract_words": [
+        {
+          "text": "Hello,",
+          "x0": 72.0,
+          "x1": 102.672,
+          "y0": 717.516,
+          "y1": 729.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "world!",
+          "x0": 106.00800000000001,
+          "x1": 138.01200000000003,
+          "y0": 717.516,
+          "y1": 729.516,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    }
+  ]
+}

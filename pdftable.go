@@ -30,11 +30,12 @@
 //	    fmt.Printf("page %d: %d chars\n", n, len(chars))
 //	}
 //
-// Phase scope: this initial release exposes the primitives. The
-// higher-level operations (ExtractText, ExtractTables, FindTables,
-// Words) are explicit future phases — see the README for the
-// roadmap. The Page interface is designed so those methods can be
-// added without breaking existing callers.
+// Phase scope: v0.1.0 ships content-stream primitives plus text
+// extraction (Page.Words, Page.ExtractText, Page.ExtractTextSimple).
+// Table-finding (ExtractTables, FindTables) is the next phase — see
+// the README for the roadmap. The Page interface is additive across
+// releases; v0.0.1 callers using only Chars/Lines/Rects/Curves
+// continue to compile against v0.1.0 without changes.
 package pdftable
 
 import (

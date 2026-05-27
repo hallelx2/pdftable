@@ -1,0 +1,63 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> /ProcSet [/PDF /Text] >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 351 >>
+stream
+BT
+/F1 10 Tf
+% Header row: baseline ~ 720.
+100 720 Td
+(Item) Tj
+100 0 Td
+(Quantity) Tj
+100 0 Td
+(Price) Tj
+% Body row 1: y -= 20, x back to 0.
+-200 -20 Td
+(Apple) Tj
+100 0 Td
+(3) Tj
+100 0 Td
+(1.50) Tj
+% Body row 2.
+-200 -15 Td
+(Banana) Tj
+100 0 Td
+(6) Tj
+100 0 Td
+(0.75) Tj
+% Body row 3.
+-200 -15 Td
+(Cherry) Tj
+100 0 Td
+(12) Tj
+100 0 Td
+(0.10) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000269 00000 n 
+0000000366 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+767
+%%EOF

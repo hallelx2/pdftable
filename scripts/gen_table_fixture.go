@@ -40,6 +40,10 @@ func main() {
 			path: filepath.Join("testdata", "table-2x3-ruled.pdf"),
 			data: testdata.TableRuled(),
 		},
+		{
+			path: filepath.Join("testdata", "golden", "table-3x4-borderless.pdf"),
+			data: testdata.TableBorderless(),
+		},
 	}
 	for _, o := range outputs {
 		if err := os.MkdirAll(filepath.Dir(o.path), 0o755); err != nil {

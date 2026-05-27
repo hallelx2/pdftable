@@ -134,6 +134,66 @@ ET
 	return BuildSinglePage(grid + text)
 }
 
+// TableBorderless returns a minimal PDF with a 3-column borderless
+// table: the columns are conveyed by whitespace alignment alone, with
+// no ruling lines drawn. The header row is at Y ~ 730 and three body
+// rows are at Y ~ 710, 695, 680. Columns are at X ~ 100, 200, 300.
+//
+// This fixture targets the "text" strategy — it's the smallest
+// possible reproducer of the borderless-table case that's common in
+// 10-K filings, bank statements, scanned-then-OCR'd PDFs, and any
+// other PDF whose tables aren't ruled.
+//
+// Content:
+//
+//	Item    Quantity  Price
+//	Apple   3         1.50
+//	Banana  6         0.75
+//	Cherry  12        0.10
+//
+// The X positions are chosen so each header word and each body word
+// in a column starts at the same X within the wordEdgeTolerance
+// (=1 pt) — pdfplumber's words_to_edges_v clusters on exactly that
+// tolerance.
+func TableBorderless() []byte {
+	// 10pt Helvetica baselines. We move the text cursor with Td so
+	// the relative offsets keep the per-row, per-column positions
+	// pinned to the same X coordinates within each row.
+	const text = `BT
+/F1 10 Tf
+% Header row: baseline ~ 720.
+100 720 Td
+(Item) Tj
+100 0 Td
+(Quantity) Tj
+100 0 Td
+(Price) Tj
+% Body row 1: y -= 20, x back to 0.
+-200 -20 Td
+(Apple) Tj
+100 0 Td
+(3) Tj
+100 0 Td
+(1.50) Tj
+% Body row 2.
+-200 -15 Td
+(Banana) Tj
+100 0 Td
+(6) Tj
+100 0 Td
+(0.75) Tj
+% Body row 3.
+-200 -15 Td
+(Cherry) Tj
+100 0 Td
+(12) Tj
+100 0 Td
+(0.10) Tj
+ET
+`
+	return BuildSinglePage(text)
+}
+
 // Rules returns a minimal PDF whose content stream draws four lines
 // (two horizontal, two vertical) and one rectangle. We use simple
 // coordinates: a 100x100 box with one stroked diagonal line and one

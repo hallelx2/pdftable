@@ -22,9 +22,8 @@ package pdftable
 //     describing "below" / "right" change their sign.
 
 // TableStrategy is the enum of edge-derivation strategies. Each axis
-// (vertical, horizontal) picks one. v0.2.0 implements "lines" and
-// "lines_strict"; "text" and "explicit" are reserved for the next
-// release (Phase 1.3.D) and return ErrUnsupported if requested.
+// (vertical, horizontal) picks one independently. All four pdfplumber
+// strategies are implemented as of v0.3.0.
 type TableStrategy string
 
 const (
@@ -41,10 +40,23 @@ const (
 	// boundaries.
 	StrategyLinesStrict TableStrategy = "lines_strict"
 
-	// StrategyText (Phase 1.3.D) infers edges from word alignment.
+	// StrategyText infers edges from word alignment. Vertical edges
+	// come from clusters of words sharing X0 / X1 / centre positions;
+	// horizontal edges from clusters sharing visual top. Best for
+	// borderless tables — bank statements, narrative tables in 10-K
+	// filings, scanned-then-OCR'd content — where the columns and
+	// rows are conveyed by whitespace alignment rather than rules.
+	// Tunable via MinWordsVertical (default 3) and
+	// MinWordsHorizontal (default 1).
 	StrategyText TableStrategy = "text"
 
-	// StrategyExplicit (Phase 1.3.D) uses caller-supplied lines.
+	// StrategyExplicit uses caller-supplied coordinates from
+	// ExplicitVerticalLines / ExplicitHorizontalLines as the only
+	// source of edges on that axis. Useful when the table boundaries
+	// are known from an external source (layout analysis, manual
+	// annotation) and you want to bypass edge detection entirely.
+	// The "explicit" strategy on an axis requires at least two
+	// coordinates on that axis; fewer than two produces an error.
 	StrategyExplicit TableStrategy = "explicit"
 )
 
@@ -96,10 +108,13 @@ type TableSettings struct {
 	TextTolerance float64
 
 	// MinWordsVertical / MinWordsHorizontal control the "text"
-	// strategy thresholds (Phase 1.3.D). They have no effect when
-	// both strategies are "lines" / "lines_strict" — kept on this
-	// struct so callers don't have to switch types when migrating to
-	// the text strategy later.
+	// strategy thresholds. A candidate column-boundary cluster must
+	// contain at least MinWordsVertical words sharing X0 / X1 /
+	// centre alignment to be promoted to a vertical edge; row
+	// boundaries need MinWordsHorizontal words sharing a top edge.
+	// pdfplumber defaults (3 / 1) mirror those in pdfplumber's
+	// table.py:11-12. These fields are ignored when the corresponding
+	// strategy is anything other than "text".
 	MinWordsVertical   int
 	MinWordsHorizontal int
 
@@ -108,15 +123,18 @@ type TableSettings struct {
 	KeepBlankChars bool
 
 	// ExplicitVerticalLines / ExplicitHorizontalLines hold caller-
-	// supplied edge positions. With StrategyLines or
-	// StrategyLinesStrict they are ADDED to the derived edges; with
-	// StrategyExplicit they ARE the edges. In v0.2.0 the explicit
-	// strategy is not yet implemented; these slices have effect only
-	// when one of the lines strategies is in use and you want extra
-	// hand-placed rules (e.g. when your column boundary isn't drawn).
+	// supplied edge positions. With StrategyLines, StrategyLinesStrict,
+	// or StrategyText they are ADDED to the derived edges; with
+	// StrategyExplicit they ARE the only source of edges on that axis.
+	// Useful when a column or row boundary is invisible in the PDF but
+	// known from an external source.
 	//
 	// Values are X coordinates for vertical lines, Y coordinates for
-	// horizontal lines, both in PDF user-space points.
+	// horizontal lines, both in PDF user-space points. Non-finite
+	// values (NaN, Inf) are dropped with a log warning. When
+	// StrategyExplicit is selected on an axis, at least two
+	// coordinates must be supplied on that axis — fewer than two
+	// returns an error.
 	ExplicitVerticalLines   []float64
 	ExplicitHorizontalLines []float64
 }

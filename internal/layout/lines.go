@@ -56,6 +56,9 @@ const (
 	// SourceExplicit: an edge constructed from an
 	// ExplicitVerticalLines / ExplicitHorizontalLines setting.
 	SourceExplicit
+	// SourceText: an edge inferred from word alignment by the "text"
+	// strategy. words_to_edges_v / words_to_edges_h in pdfplumber.
+	SourceText
 )
 
 // Edge is one axis-aligned line segment carrying the data the table-

@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-27
+
+Phase 1.3.D + 1.3.E — text and explicit table-finding strategies, the
+`pdftable` CLI. Completes pdfplumber parity for the four canonical
+table strategies. The v0.2.x public API surface is unchanged; v0.3.0
+only widens what's valid in `TableSettings` and adds the new CLI
+binary, so existing callers compile and run as-is.
+
+### Added
+
+- `StrategyText`: infer table edges from word alignment. Vertical
+  edges come from clusters of words sharing X0 (left), X1 (right), or
+  centre position with the per-axis tolerance hardcoded to 1 PDF
+  point (matching pdfplumber's `words_to_edges_v`). Horizontal edges
+  come from clusters sharing visual top, with both the top and
+  bottom of each cluster emitted so the last row gets captured
+  (matching `words_to_edges_h`). Threshold via
+  `TableSettings.MinWordsVertical` (default 3) and
+  `MinWordsHorizontal` (default 1).
+- `StrategyExplicit`: caller-supplied edges via
+  `TableSettings.ExplicitVerticalLines` /
+  `ExplicitHorizontalLines`. When the strategy is `explicit` on an
+  axis, the supplied coordinates are the ONLY source of edges on
+  that axis; at least two coordinates are required (matching
+  pdfplumber's validation). Non-finite values (NaN, Inf) are skipped
+  with a `log` warning rather than crashing.
+- Mixed strategies: every combination of the four strategies across
+  the two axes works (16 combinations total). The two axes' base
+  edges are derived independently then merged together for the
+  intersection pipeline — no orientation-specific logic leaks
+  between them.
+- `pdftable` CLI binary at `cmd/pdftable/`. Subcommand surface
+  mirrors pdfplumber's: `extract <file.pdf> [flags]` with
+  `--pages 1,3-5`, `--tables`, `--text`, `--format json|text`,
+  `--vertical-strategy`, `--horizontal-strategy`, the full set of
+  tolerance flags, `--min-words-vertical / horizontal`,
+  `--explicit-vertical-lines / horizontal-lines`, and `--indent`.
+  Stdlib `flag` package only — no third-party CLI dependencies.
+  Positional argument can appear before OR after flags
+  (pdfplumber-style invocation). Tested via
+  `cmd/pdftable/main_test.go` against the existing golden fixtures.
+- New `layout.SourceText` enum value tagging edges produced by the
+  text strategy. `layout.SourceExplicit` was already in place from
+  v0.2.0; the explicit-strategy implementation now writes through
+  to it as the primary source.
+- Hand-crafted borderless fixture `testdata.TableBorderless()`
+  (3-column × 4-row narrative table conveyed by whitespace alignment
+  only, no rules drawn). Used by the new text-strategy unit tests
+  and pdfplumber parity test. The generated PDF is in
+  `testdata/golden/table-3x4-borderless.pdf`.
+- Golden-file parity test `TestGoldenTablesTextStrategyAgainstPdfplumber`
+  driven by `*.tables-text.expected.json` files. The
+  `table-3x4-borderless` fixture matches pdfplumber's
+  `find_tables({text, text})` cell-for-cell. Regenerate via the new
+  `scripts/capture_pdfplumber_text_golden.py` helper.
+- `scripts/capture_pdfplumber_text_golden.py`: tiny Python helper
+  that captures pdfplumber's text-strategy output for every fixture
+  with a sibling `.tables-text.target` marker. Mirrors the existing
+  `scripts/gen_golden.py` workflow for the line-strategy goldens.
+
+### Changed
+
+- `Page.FindTables` / `Page.ExtractTables` no longer return
+  `ErrUnsupported` for `text` or `explicit` strategies — all four
+  strategies are now implemented. The error is still returned for
+  unknown strategy strings (typo guard).
+- `TableSettings` field docs updated to reflect the implemented
+  semantics of `MinWordsVertical` / `MinWordsHorizontal` and the
+  Explicit*Lines slices.
+- README's "Tables" section restructured: side-by-side
+  pdfplumber→pdftable examples for all four strategies, plus a
+  mixed-strategy snippet and a new "CLI" section.
+
+### Known limitations
+
+- Cell text fidelity on the text strategy depends on the same font
+  metrics as v0.2.x: PDFs that use standard-14 fonts without
+  bundled AFM tables can report intra-word gaps as zero, producing
+  cells like "Nohorizontal" where pdfplumber gets "No horizontal".
+  Structural parity (table count, row count, column count) matches
+  exactly; cell text matches verbatim on PDFs whose fonts have
+  bundled metrics or `/Widths` arrays. AFM-table bundling is a
+  v0.4.x goal.
+- Mixed-strategy snap/join uses a single global tolerance. If a
+  page mixes drawn rules at one X coordinate and word-cluster
+  edges at a slightly different X, the two won't merge unless
+  `SnapTolerance` is widened. This matches pdfplumber's behaviour
+  but is worth noting for callers tuning a mixed pipeline.
+
 ## [0.2.0] - 2026-05-27
 
 Phase 1.3.C — table-finding via ruled lines. Direct port of
@@ -219,6 +308,7 @@ Initial release. Phase 1.3.A — content-stream primitives layer.
 - Type 3 fonts (their glyph procedures are themselves content streams).
 - Vertical writing mode.
 
+[0.3.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.2.0
 [0.1.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.1
 [0.1.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.0

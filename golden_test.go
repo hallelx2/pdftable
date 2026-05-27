@@ -72,10 +72,10 @@ func TestGoldenAgainstPdfplumber(t *testing.T) {
 		t.Fatalf("read golden dir: %v", err)
 	}
 
-	// Find every .expected.json (but NOT .tables.expected.json — the
-	// tables golden files have a different schema and are exercised
-	// by TestGoldenTablesAgainstPdfplumber below) and run a sub-test
-	// for each.
+	// Find every .expected.json (but NOT one of the table goldens —
+	// those have a different schema and are exercised by the
+	// strategy-specific TestGoldenTables* tests below) and run a
+	// sub-test for each.
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -85,6 +85,9 @@ func TestGoldenAgainstPdfplumber(t *testing.T) {
 			continue
 		}
 		if strings.HasSuffix(name, ".tables.expected.json") {
+			continue
+		}
+		if strings.HasSuffix(name, ".tables-text.expected.json") {
 			continue
 		}
 		stem := strings.TrimSuffix(name, ".expected.json")
@@ -144,15 +147,50 @@ func TestGoldenTablesAgainstPdfplumber(t *testing.T) {
 		}
 		stem := strings.TrimSuffix(name, ".tables.expected.json")
 		t.Run(stem, func(t *testing.T) {
-			runGoldenTablesCase(t, dir, stem)
+			runGoldenTablesCase(t, dir, stem, pdftable.DefaultTableSettings())
 		})
 	}
 }
 
-func runGoldenTablesCase(t *testing.T, dir, stem string) {
+// TestGoldenTablesTextStrategyAgainstPdfplumber asserts pdftable's
+// "text" strategy output matches pdfplumber's
+// find_tables({"text", "text"}) on every .tables-text.expected.json
+// fixture in testdata/golden. The strategy-specific suffix lets us
+// pin the parity expectation per fixture independently of the
+// default-lines test above.
+func TestGoldenTablesTextStrategyAgainstPdfplumber(t *testing.T) {
+	dir := filepath.Join("testdata", "golden")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read golden dir: %v", err)
+	}
+	settings := pdftable.DefaultTableSettings()
+	settings.VerticalStrategy = pdftable.StrategyText
+	settings.HorizontalStrategy = pdftable.StrategyText
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(name, ".tables-text.expected.json") {
+			continue
+		}
+		stem := strings.TrimSuffix(name, ".tables-text.expected.json")
+		t.Run(stem, func(t *testing.T) {
+			runGoldenTablesCaseSuffix(t, dir, stem, ".tables-text.expected.json", settings)
+		})
+	}
+}
+
+func runGoldenTablesCase(t *testing.T, dir, stem string, settings pdftable.TableSettings) {
+	t.Helper()
+	runGoldenTablesCaseSuffix(t, dir, stem, ".tables.expected.json", settings)
+}
+
+func runGoldenTablesCaseSuffix(t *testing.T, dir, stem, suffix string, settings pdftable.TableSettings) {
 	t.Helper()
 	pdfPath := filepath.Join(dir, stem+".pdf")
-	jsonPath := filepath.Join(dir, stem+".tables.expected.json")
+	jsonPath := filepath.Join(dir, stem+suffix)
 
 	data, err := os.ReadFile(jsonPath)
 	if err != nil {
@@ -174,7 +212,7 @@ func runGoldenTablesCase(t *testing.T, dir, stem string) {
 		if err != nil {
 			t.Fatalf("Page(%d): %v", expPage.Number, err)
 		}
-		gotTables, err := p.ExtractTables(pdftable.DefaultTableSettings())
+		gotTables, err := p.ExtractTables(settings)
 		if err != nil {
 			t.Fatalf("ExtractTables: %v", err)
 		}

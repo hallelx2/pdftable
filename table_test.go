@@ -261,18 +261,18 @@ func TestRunTableFinder_2x3Grid(t *testing.T) {
 	}
 }
 
-// TestEnsureSupportedStrategies_RejectsTextAndExplicit asserts that
-// the v0.3.0 strategies return ErrUnsupported rather than silently
-// running an empty pipeline.
-func TestEnsureSupportedStrategies_RejectsTextAndExplicit(t *testing.T) {
+// TestEnsureSupportedStrategies_RejectsUnknown asserts that an
+// unrecognised strategy string returns ErrUnsupported rather than
+// silently running an empty pipeline. All four pdfplumber strategies
+// (lines / lines_strict / text / explicit) are now implemented, so
+// this test only exercises the unknown-string path.
+func TestEnsureSupportedStrategies_RejectsUnknown(t *testing.T) {
 	cases := []struct {
 		name string
 		s    TableSettings
 	}{
-		{"text/lines", TableSettings{VerticalStrategy: StrategyText, HorizontalStrategy: StrategyLines}},
-		{"lines/text", TableSettings{VerticalStrategy: StrategyLines, HorizontalStrategy: StrategyText}},
-		{"explicit/lines", TableSettings{VerticalStrategy: StrategyExplicit, HorizontalStrategy: StrategyLines}},
-		{"lines/explicit", TableSettings{VerticalStrategy: StrategyLines, HorizontalStrategy: StrategyExplicit}},
+		{"unknown_v", TableSettings{VerticalStrategy: "blah", HorizontalStrategy: StrategyLines}},
+		{"unknown_h", TableSettings{VerticalStrategy: StrategyLines, HorizontalStrategy: "blah"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -287,24 +287,20 @@ func TestEnsureSupportedStrategies_RejectsTextAndExplicit(t *testing.T) {
 	}
 }
 
-// TestEnsureSupportedStrategies_AcceptsLines asserts that both lines
-// strategies pass validation.
-func TestEnsureSupportedStrategies_AcceptsLines(t *testing.T) {
-	cases := []struct {
-		name string
-		s    TableSettings
-	}{
-		{"lines/lines", TableSettings{VerticalStrategy: StrategyLines, HorizontalStrategy: StrategyLines}},
-		{"strict/lines", TableSettings{VerticalStrategy: StrategyLinesStrict, HorizontalStrategy: StrategyLines}},
-		{"lines/strict", TableSettings{VerticalStrategy: StrategyLines, HorizontalStrategy: StrategyLinesStrict}},
-		{"strict/strict", TableSettings{VerticalStrategy: StrategyLinesStrict, HorizontalStrategy: StrategyLinesStrict}},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if err := ensureSupportedStrategies(c.s.applyDefaults()); err != nil {
-				t.Errorf("got %v, want nil", err)
-			}
-		})
+// TestEnsureSupportedStrategies_AcceptsAllFour asserts that all four
+// pdfplumber strategies pass validation, in every paired combination.
+func TestEnsureSupportedStrategies_AcceptsAllFour(t *testing.T) {
+	strategies := []TableStrategy{StrategyLines, StrategyLinesStrict, StrategyText, StrategyExplicit}
+	for _, v := range strategies {
+		for _, h := range strategies {
+			name := string(v) + "/" + string(h)
+			t.Run(name, func(t *testing.T) {
+				s := TableSettings{VerticalStrategy: v, HorizontalStrategy: h}.applyDefaults()
+				if err := ensureSupportedStrategies(s); err != nil {
+					t.Errorf("got %v, want nil", err)
+				}
+			})
+		}
 	}
 }
 
@@ -397,10 +393,11 @@ func TestExtractTables_RuledFixture(t *testing.T) {
 	}
 }
 
-// TestExtractTables_UnsupportedStrategyReturnsErrUnsupported asserts
-// the public API surfaces ErrUnsupported when callers request "text"
-// or "explicit" strategies.
-func TestExtractTables_UnsupportedStrategyReturnsErrUnsupported(t *testing.T) {
+// TestExtractTables_UnknownStrategyReturnsErrUnsupported asserts the
+// public API surfaces ErrUnsupported when callers pass an unrecognised
+// strategy string. All four standard strategies are implemented as of
+// v0.3.0; this guard catches typos.
+func TestExtractTables_UnknownStrategyReturnsErrUnsupported(t *testing.T) {
 	doc, err := OpenBytes(testdata.TableRuled())
 	if err != nil {
 		t.Fatalf("OpenBytes: %v", err)
@@ -409,7 +406,7 @@ func TestExtractTables_UnsupportedStrategyReturnsErrUnsupported(t *testing.T) {
 	p, _ := doc.Page(1)
 
 	settings := DefaultTableSettings()
-	settings.VerticalStrategy = StrategyText
+	settings.VerticalStrategy = "not-a-strategy"
 	_, err = p.ExtractTables(settings)
 	if err == nil {
 		t.Fatal("got nil, want ErrUnsupported")
@@ -417,9 +414,31 @@ func TestExtractTables_UnsupportedStrategyReturnsErrUnsupported(t *testing.T) {
 	if !errIs(err, ErrUnsupported) {
 		t.Errorf("got %v, want ErrUnsupported", err)
 	}
-	// The error should mention what was unsupported and the phase.
-	if !strings.Contains(err.Error(), "text") {
+	if !strings.Contains(err.Error(), "not-a-strategy") {
 		t.Errorf("error %q should name the strategy", err.Error())
+	}
+}
+
+// TestExtractTables_ExplicitWithoutCoordinatesReturnsError asserts
+// that StrategyExplicit on an axis with fewer than two coordinates
+// returns a clear validation error (matching pdfplumber's behaviour).
+func TestExtractTables_ExplicitWithoutCoordinatesReturnsError(t *testing.T) {
+	doc, err := OpenBytes(testdata.TableRuled())
+	if err != nil {
+		t.Fatalf("OpenBytes: %v", err)
+	}
+	defer doc.Close()
+	p, _ := doc.Page(1)
+
+	settings := DefaultTableSettings()
+	settings.VerticalStrategy = StrategyExplicit
+	settings.ExplicitVerticalLines = []float64{100}
+	_, err = p.ExtractTables(settings)
+	if err == nil {
+		t.Fatal("got nil, want validation error")
+	}
+	if !strings.Contains(err.Error(), "two") {
+		t.Errorf("error %q should mention the two-coordinate minimum", err.Error())
 	}
 }
 
@@ -440,4 +459,333 @@ func TestFindTables_NoEdgesReturnsEmpty(t *testing.T) {
 	if len(finders) != 0 {
 		t.Errorf("got %d finders, want 0 (text-only page)", len(finders))
 	}
+}
+
+// makeWord builds a Word at the given bbox with the given text.
+// Helper for the text-strategy unit tests which feed hand-crafted
+// Word slices directly into wordsToEdgesV / wordsToEdgesH.
+func makeWord(text string, x0, y0, x1, y1 float64) Word {
+	return Word{
+		Text: text,
+		X0:   x0, Y0: y0, X1: x1, Y1: y1,
+		Upright:   true,
+		Direction: "ltr",
+	}
+}
+
+// TestWordsToEdgesV_ThreeColumnAlignment exercises the vertical "text"
+// strategy with three columns of three words each, all left-aligned
+// at X = 100, 200, 300.  The expected output is four vertical edges:
+// three at the columns' X0 plus one trailing at the rightmost X1.
+func TestWordsToEdgesV_ThreeColumnAlignment(t *testing.T) {
+	words := []Word{
+		// Row 1: y near 700
+		makeWord("AAA", 100, 700, 130, 710),
+		makeWord("BBB", 200, 700, 230, 710),
+		makeWord("CCC", 300, 700, 330, 710),
+		// Row 2: y near 685
+		makeWord("DDD", 100, 685, 130, 695),
+		makeWord("EEE", 200, 685, 230, 695),
+		makeWord("FFF", 300, 685, 330, 695),
+		// Row 3: y near 670
+		makeWord("GGG", 100, 670, 130, 680),
+		makeWord("HHH", 200, 670, 230, 680),
+		makeWord("III", 300, 670, 330, 680),
+	}
+	edges := wordsToEdgesV(words, 3)
+	if len(edges) != 4 {
+		t.Fatalf("got %d edges, want 4 (3 columns + trailing)", len(edges))
+	}
+	xs := make(map[float64]struct{}, 4)
+	for _, e := range edges {
+		if e.Orientation != layout.Vertical {
+			t.Errorf("edge %+v: not vertical", e)
+		}
+		if e.Source != layout.SourceText {
+			t.Errorf("edge %+v: source %v, want SourceText", e, e.Source)
+		}
+		xs[e.X0] = struct{}{}
+	}
+	for _, want := range []float64{100, 200, 300, 330} {
+		if _, ok := xs[want]; !ok {
+			t.Errorf("missing vertical edge at X=%v; got %v", want, xs)
+		}
+	}
+}
+
+// TestWordsToEdgesV_BelowThresholdDropsCluster asserts that a column
+// candidate with fewer than MinWordsVertical words doesn't survive
+// the threshold filter.
+func TestWordsToEdgesV_BelowThresholdDropsCluster(t *testing.T) {
+	words := []Word{
+		// Column at X=100 has only 2 words; threshold of 3 should
+		// drop it.
+		makeWord("AAA", 100, 700, 130, 710),
+		makeWord("DDD", 100, 685, 130, 695),
+		// Column at X=200 has 3 words.
+		makeWord("BBB", 200, 700, 230, 710),
+		makeWord("EEE", 200, 685, 230, 695),
+		makeWord("HHH", 200, 670, 230, 680),
+	}
+	edges := wordsToEdgesV(words, 3)
+	// Expected: 1 column boundary (X=200) + 1 trailing (X=230) = 2 edges.
+	if len(edges) != 2 {
+		t.Fatalf("got %d edges, want 2", len(edges))
+	}
+}
+
+// TestWordsToEdgesH_DetectsRows asserts that horizontal clusters of
+// words sharing a top-Y produce one top + one bottom edge per row.
+func TestWordsToEdgesH_DetectsRows(t *testing.T) {
+	words := []Word{
+		// Row 1: top at Y=710
+		makeWord("AAA", 100, 700, 130, 710),
+		makeWord("BBB", 200, 700, 230, 710),
+		makeWord("CCC", 300, 700, 330, 710),
+		// Row 2: top at Y=695
+		makeWord("DDD", 100, 685, 130, 695),
+		makeWord("EEE", 200, 685, 230, 695),
+		makeWord("FFF", 300, 685, 330, 695),
+	}
+	// Threshold 1 → every cluster counts. Two rows × 2 edges/row = 4.
+	edges := wordsToEdgesH(words, 1)
+	if len(edges) != 4 {
+		t.Fatalf("got %d edges, want 4 (2 rows × top+bottom)", len(edges))
+	}
+	for _, e := range edges {
+		if e.Orientation != layout.Horizontal {
+			t.Errorf("edge %+v: not horizontal", e)
+		}
+		if e.Source != layout.SourceText {
+			t.Errorf("edge %+v: source %v, want SourceText", e, e.Source)
+		}
+	}
+	// Top + bottom for each row should be present: row 1 (700, 710)
+	// and row 2 (685, 695).
+	ys := make(map[float64]int, 4)
+	for _, e := range edges {
+		ys[e.Y0]++
+	}
+	for _, want := range []float64{700, 710, 685, 695} {
+		if ys[want] == 0 {
+			t.Errorf("missing horizontal edge at Y=%v", want)
+		}
+	}
+}
+
+// TestWordsToEdges_EmptyInputs asserts the early-return paths.
+func TestWordsToEdges_EmptyInputs(t *testing.T) {
+	if got := wordsToEdgesV(nil, 3); got != nil {
+		t.Errorf("nil words: got %v, want nil", got)
+	}
+	if got := wordsToEdgesH(nil, 1); got != nil {
+		t.Errorf("nil words: got %v, want nil", got)
+	}
+	if got := wordsToEdgesV([]Word{makeWord("A", 0, 0, 10, 10)}, 0); got != nil {
+		t.Errorf("threshold 0: got %v, want nil", got)
+	}
+}
+
+// TestExplicitVerticalEdges_PromotesAndFiltersInvalid asserts that
+// each finite X is promoted to a full-height vertical edge tagged
+// SourceExplicit, and that non-finite values are dropped silently.
+func TestExplicitVerticalEdges_PromotesAndFiltersInvalid(t *testing.T) {
+	xs := []float64{100, 200, nanForTest(), 300}
+	edges := explicitVerticalEdges(xs, 0, 800)
+	if len(edges) != 3 {
+		t.Fatalf("got %d edges, want 3 (NaN dropped)", len(edges))
+	}
+	for _, e := range edges {
+		if e.Orientation != layout.Vertical {
+			t.Errorf("edge %+v: not vertical", e)
+		}
+		if e.Source != layout.SourceExplicit {
+			t.Errorf("edge %+v: source %v, want SourceExplicit", e, e.Source)
+		}
+		if e.Y0 != 0 || e.Y1 != 800 {
+			t.Errorf("edge %+v: Y span got (%v,%v), want (0,800)", e, e.Y0, e.Y1)
+		}
+	}
+}
+
+// TestExplicitHorizontalEdges_PromotesAndFiltersInvalid is the
+// horizontal counterpart.
+func TestExplicitHorizontalEdges_PromotesAndFiltersInvalid(t *testing.T) {
+	ys := []float64{100, 200, 300}
+	edges := explicitHorizontalEdges(ys, 0, 600)
+	if len(edges) != 3 {
+		t.Fatalf("got %d edges, want 3", len(edges))
+	}
+	for _, e := range edges {
+		if e.Orientation != layout.Horizontal {
+			t.Errorf("edge %+v: not horizontal", e)
+		}
+		if e.X0 != 0 || e.X1 != 600 {
+			t.Errorf("edge %+v: X span got (%v,%v), want (0,600)", e, e.X0, e.X1)
+		}
+	}
+}
+
+// TestValidateExplicitForStrategy_RequiresTwoCoords asserts the
+// pre-flight check rejects an explicit strategy with fewer than two
+// coordinates on the chosen axis. pdfplumber raises ValueError; we
+// surface a regular error (callers don't typically catch via
+// errors.Is here).
+func TestValidateExplicitForStrategy_RequiresTwoCoords(t *testing.T) {
+	cases := []struct {
+		name string
+		s    TableSettings
+		want bool
+	}{
+		{"v_explicit_zero", TableSettings{VerticalStrategy: StrategyExplicit}, true},
+		{"v_explicit_one", TableSettings{VerticalStrategy: StrategyExplicit, ExplicitVerticalLines: []float64{1}}, true},
+		{"v_explicit_two_ok", TableSettings{VerticalStrategy: StrategyExplicit, ExplicitVerticalLines: []float64{1, 2}}, false},
+		{"h_explicit_one", TableSettings{HorizontalStrategy: StrategyExplicit, ExplicitHorizontalLines: []float64{1}}, true},
+		{"lines_no_check", TableSettings{VerticalStrategy: StrategyLines}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validateExplicitForStrategy(c.s.applyDefaults())
+			if got := err != nil; got != c.want {
+				t.Errorf("got err=%v, want error: %v", err, c.want)
+			}
+		})
+	}
+}
+
+// TestExtractTables_BorderlessTextStrategy asserts the public API
+// runs the text strategy end-to-end on the borderless fixture and
+// recovers the expected row × column grid.
+//
+// Fixture: testdata.TableBorderless() — 3 columns ("Item",
+// "Quantity", "Price") and 3 rows of body data, no rules drawn.
+func TestExtractTables_BorderlessTextStrategy(t *testing.T) {
+	doc, err := OpenBytes(testdata.TableBorderless())
+	if err != nil {
+		t.Fatalf("OpenBytes: %v", err)
+	}
+	defer doc.Close()
+	p, err := doc.Page(1)
+	if err != nil {
+		t.Fatalf("Page(1): %v", err)
+	}
+
+	settings := DefaultTableSettings()
+	settings.VerticalStrategy = StrategyText
+	settings.HorizontalStrategy = StrategyText
+
+	tables, err := p.ExtractTables(settings)
+	if err != nil {
+		t.Fatalf("ExtractTables: %v", err)
+	}
+	if len(tables) == 0 {
+		t.Fatalf("got 0 tables, want >= 1")
+	}
+	tbl := tables[0]
+	// We constructed the fixture with 4 rows (1 header + 3 body) and
+	// 3 columns. The text strategy infers row boundaries from top-y
+	// clusters so depending on how the top/bottom edges merge we
+	// may end up with 3 or 4 rows; assert at least 3 and at least 3
+	// columns.
+	if len(tbl.Rows) < 3 {
+		t.Errorf("rows: got %d, want >= 3", len(tbl.Rows))
+	}
+	if len(tbl.Rows) > 0 && len(tbl.Rows[0]) < 3 {
+		t.Errorf("cols: got %d, want >= 3", len(tbl.Rows[0]))
+	}
+	// Spot-check that the body data is present somewhere in the
+	// extracted text (the algorithm may place it in any row/col
+	// depending on edge merging; the parity test below pins the
+	// exact layout).
+	flat := strings.Join(flattenRows(tbl.Rows), " ")
+	for _, want := range []string{"Apple", "Banana", "Cherry"} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("flat output %q missing %q", flat, want)
+		}
+	}
+}
+
+// TestExtractTables_ExplicitStrategy asserts that supplying caller-
+// derived coordinates via ExplicitVerticalLines /
+// ExplicitHorizontalLines + StrategyExplicit produces the expected
+// grid even when the underlying PDF has no rules drawn at all.
+func TestExtractTables_ExplicitStrategy(t *testing.T) {
+	doc, err := OpenBytes(testdata.TableBorderless())
+	if err != nil {
+		t.Fatalf("OpenBytes: %v", err)
+	}
+	defer doc.Close()
+	p, err := doc.Page(1)
+	if err != nil {
+		t.Fatalf("Page(1): %v", err)
+	}
+
+	// The borderless fixture places its 3 columns near X = 100, 200,
+	// 300 and 4 rows of text in the Y range [680, 730]. We feed
+	// boundaries that bracket those positions.
+	settings := DefaultTableSettings()
+	settings.VerticalStrategy = StrategyExplicit
+	settings.HorizontalStrategy = StrategyExplicit
+	settings.ExplicitVerticalLines = []float64{95, 195, 295, 395}
+	settings.ExplicitHorizontalLines = []float64{670, 690, 710, 740}
+
+	tables, err := p.ExtractTables(settings)
+	if err != nil {
+		t.Fatalf("ExtractTables: %v", err)
+	}
+	if len(tables) == 0 {
+		t.Fatalf("got 0 tables, want >= 1")
+	}
+	tbl := tables[0]
+	if len(tbl.Rows) != 3 {
+		t.Errorf("rows: got %d, want 3 (4 H-edges → 3 rows)", len(tbl.Rows))
+	}
+	if len(tbl.Rows) > 0 && len(tbl.Rows[0]) != 3 {
+		t.Errorf("cols: got %d, want 3 (4 V-edges → 3 cols)", len(tbl.Rows[0]))
+	}
+}
+
+// TestExtractTables_MixedStrategy asserts that VerticalStrategy=text +
+// HorizontalStrategy=explicit (and the reverse) work — each axis runs
+// its own edge derivation and the resulting edges are merged together.
+func TestExtractTables_MixedStrategy(t *testing.T) {
+	doc, err := OpenBytes(testdata.TableBorderless())
+	if err != nil {
+		t.Fatalf("OpenBytes: %v", err)
+	}
+	defer doc.Close()
+	p, err := doc.Page(1)
+	if err != nil {
+		t.Fatalf("Page(1): %v", err)
+	}
+
+	settings := DefaultTableSettings()
+	settings.VerticalStrategy = StrategyText
+	settings.HorizontalStrategy = StrategyExplicit
+	settings.ExplicitHorizontalLines = []float64{670, 690, 710, 740}
+
+	tables, err := p.ExtractTables(settings)
+	if err != nil {
+		t.Fatalf("ExtractTables (text-v + explicit-h): %v", err)
+	}
+	if len(tables) == 0 {
+		t.Fatal("got 0 tables, want >= 1")
+	}
+}
+
+// flattenRows joins a 2-D string grid into a flat slice for
+// substring spot-checks.
+func flattenRows(rows [][]string) []string {
+	var out []string
+	for _, r := range rows {
+		out = append(out, r...)
+	}
+	return out
+}
+
+// nanForTest returns a NaN without forcing the test file to import
+// math at the top.
+func nanForTest() float64 {
+	zero := 0.0
+	return zero / zero
 }

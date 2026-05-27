@@ -102,10 +102,11 @@ type Page interface {
 	// the intermediate stages (edges / intersections / raw cells)
 	// alongside the assembled per-table CellsGrid.
 	//
-	// v0.2.0 supports VerticalStrategy / HorizontalStrategy values
-	// of "lines" and "lines_strict". Passing "text" or "explicit"
-	// returns ErrUnsupported — those strategies land in Phase 1.3.D
-	// (v0.3.0).
+	// v0.3.0 supports all four pdfplumber strategies: "lines",
+	// "lines_strict", "text", and "explicit". Each axis (vertical,
+	// horizontal) selects its strategy independently, so mixed
+	// settings like vertical="text" + horizontal="lines" work as
+	// expected.
 	FindTables(settings TableSettings) ([]TableFinder, error)
 
 	// ExtractTables wraps FindTables and runs per-cell text
@@ -390,11 +391,13 @@ func charsJoinedText(chars []Char) string {
 //
 //  1. Walk the page once via Objects(), so we pay the content-stream
 //     parse cost a single time rather than once per primitive type.
-//  2. Convert every Line / Rect / Curve into one or more layout.Edge
-//     instances. Lines produce 0 or 1 edge; Rects produce 4; Curves
-//     produce one per axis-aligned segment.
-//  3. For lines_strict, drop SourceRect and SourceCurve edges before
-//     the prefilter.
+//  2. Compute per-axis base edges according to the requested strategy:
+//     - "lines"        → Lines + Rects + Curves (axis-aligned)
+//     - "lines_strict" → Lines only
+//     - "text"         → words clustered by x0/x1/centre (v) or top (h)
+//     - "explicit"     → empty (caller supplies the edges)
+//  3. Append the caller's ExplicitVerticalLines / ExplicitHorizontalLines
+//     on top of whichever base set was chosen.
 //  4. Apply the prefilter (drop edges shorter than
 //     EdgeMinLengthPrefilter — pdfplumber default 1 pt).
 //  5. Merge (snap onto cluster means, then join collinear edges
@@ -402,77 +405,69 @@ func charsJoinedText(chars []Char) string {
 //  6. Apply the post-merge length filter (drop edges shorter than
 //     EdgeMinLength — pdfplumber default 3 pt).
 //
-// The returned slice is the input both the vertical and horizontal
-// stages share — pdfplumber's TableFinder.get_edges takes the union
-// of vertical-strategy edges and horizontal-strategy edges and runs
-// the merge across both at once. We do the same, but with one
-// wrinkle: if the two strategies differ ("lines" + "lines_strict"),
-// we apply the source-filter PER ORIENTATION so a strict horizontal
-// strategy can still benefit from rect-derived vertical edges and
-// vice versa. The pdfplumber implementation handles this implicitly
-// because its filter_edges receives the requested orientation as an
-// argument; our code mirrors that branch explicitly.
+// Each axis uses its own strategy, so "text" vertical + "lines"
+// horizontal (or any of the 16 combinations) works exactly as in
+// pdfplumber.
 func (p *page) findTableEdges(s TableSettings) ([]layout.Edge, error) {
-	objs, err := p.Objects()
-	if err != nil {
-		return nil, err
+	// Resolve text strategy's input once (and only when needed) — both
+	// axes can ask for it, and Words is an expensive call.
+	var words []Word
+	needWords := s.VerticalStrategy == StrategyText || s.HorizontalStrategy == StrategyText
+	if needWords {
+		opts := DefaultWordOpts()
+		opts.XTolerance = s.TextTolerance
+		opts.YTolerance = s.TextTolerance
+		opts.KeepBlankChars = s.KeepBlankChars
+		w, err := p.Words(opts)
+		if err != nil {
+			return nil, err
+		}
+		words = w
 	}
 
-	tol := 0.1 // near-axis-aligned slack for FromLine/FromCurve
-	rawEdges := make([]layout.Edge, 0, len(objs.Lines)+4*len(objs.Rects)+2*len(objs.Curves))
-
-	for _, l := range objs.Lines {
-		if e, ok := layout.FromLine(layout.LineSegment{
-			X0: l.X0, Y0: l.Y0, X1: l.X1, Y1: l.Y1, Width: l.Width,
-		}, tol); ok {
-			rawEdges = append(rawEdges, e)
+	// Resolve drawn-primitive edges once if either axis needs them
+	// (lines or lines_strict).
+	var lineLikeEdges []layout.Edge
+	needPrimitives := isLineLike(s.VerticalStrategy) || isLineLike(s.HorizontalStrategy)
+	if needPrimitives {
+		objs, err := p.Objects()
+		if err != nil {
+			return nil, err
+		}
+		tol := 0.1 // near-axis-aligned slack for FromLine/FromCurve
+		lineLikeEdges = make([]layout.Edge, 0, len(objs.Lines)+4*len(objs.Rects)+2*len(objs.Curves))
+		for _, l := range objs.Lines {
+			if e, ok := layout.FromLine(layout.LineSegment{
+				X0: l.X0, Y0: l.Y0, X1: l.X1, Y1: l.Y1, Width: l.Width,
+			}, tol); ok {
+				lineLikeEdges = append(lineLikeEdges, e)
+			}
+		}
+		for _, r := range objs.Rects {
+			lineLikeEdges = append(lineLikeEdges, layout.FromRect(layout.RectSegment{
+				X0: r.X0, Y0: r.Y0, X1: r.X1, Y1: r.Y1, Width: r.Width,
+			})...)
+		}
+		for _, c := range objs.Curves {
+			lineLikeEdges = append(lineLikeEdges, layout.FromCurve(layout.CurveSegment{
+				Points: c.Points, Width: c.Width,
+			}, tol)...)
 		}
 	}
-	for _, r := range objs.Rects {
-		rawEdges = append(rawEdges, layout.FromRect(layout.RectSegment{
-			X0: r.X0, Y0: r.Y0, X1: r.X1, Y1: r.Y1, Width: r.Width,
-		})...)
-	}
-	for _, c := range objs.Curves {
-		rawEdges = append(rawEdges, layout.FromCurve(layout.CurveSegment{
-			Points: c.Points, Width: c.Width,
-		}, tol)...)
-	}
 
-	// Per-orientation source filter: lines_strict on an axis drops
-	// non-line sources on that axis. We split into v/h, filter each
-	// according to its own strategy, then recombine before the
-	// length filter and merge.
-	vEdges := layout.FilterEdgesByOrientation(rawEdges, layout.Vertical)
-	hEdges := layout.FilterEdgesByOrientation(rawEdges, layout.Horizontal)
+	pageWidth := p.Width()
+	pageHeight := p.Height()
 
-	if s.VerticalStrategy == StrategyLinesStrict {
-		vEdges = layout.FilterEdgesBySource(vEdges, layout.SourceLine, layout.SourceExplicit)
-	}
-	if s.HorizontalStrategy == StrategyLinesStrict {
-		hEdges = layout.FilterEdgesBySource(hEdges, layout.SourceLine, layout.SourceExplicit)
-	}
+	// Per-axis base edge derivation.
+	vEdges := p.baseEdges(s.VerticalStrategy, layout.Vertical, lineLikeEdges, words, s)
+	hEdges := p.baseEdges(s.HorizontalStrategy, layout.Horizontal, lineLikeEdges, words, s)
 
-	// Explicit overrides are added on top of the derived edges.
-	// pdfplumber accepts these even with the lines / lines_strict
-	// strategies (the "explicit" strategy itself replaces the
-	// derived edges; that strategy is deferred to v0.3.0).
-	for _, x := range s.ExplicitVerticalLines {
-		vEdges = append(vEdges, layout.Edge{
-			X0: x, X1: x,
-			Y0: 0, Y1: p.Height(),
-			Orientation: layout.Vertical,
-			Source:      layout.SourceExplicit,
-		})
-	}
-	for _, y := range s.ExplicitHorizontalLines {
-		hEdges = append(hEdges, layout.Edge{
-			X0: 0, X1: p.Width(),
-			Y0: y, Y1: y,
-			Orientation: layout.Horizontal,
-			Source:      layout.SourceExplicit,
-		})
-	}
+	// Explicit overrides are added on top of whichever base set was
+	// chosen. With StrategyExplicit the base set is empty so the
+	// explicit edges are the only source; with the other strategies
+	// they're additive (helpful when a column boundary isn't drawn).
+	vEdges = append(vEdges, explicitVerticalEdges(s.ExplicitVerticalLines, 0, pageHeight)...)
+	hEdges = append(hEdges, explicitHorizontalEdges(s.ExplicitHorizontalLines, 0, pageWidth)...)
 
 	combined := make([]layout.Edge, 0, len(vEdges)+len(hEdges))
 	combined = append(combined, vEdges...)
@@ -492,15 +487,58 @@ func (p *page) findTableEdges(s TableSettings) ([]layout.Edge, error) {
 	return merged, nil
 }
 
+// isLineLike reports whether the strategy derives its edges from
+// drawn primitives (Lines / Rects / Curves), i.e. whether
+// findTableEdges needs to call Objects(). Text and explicit
+// strategies don't.
+func isLineLike(s TableStrategy) bool {
+	return s == StrategyLines || s == StrategyLinesStrict
+}
+
+// baseEdges returns the per-axis edges produced by the named strategy.
+// lineLikeEdges is the unfiltered slice of edges derived from the
+// page's drawn primitives (Lines + Rects + Curves); it's consulted
+// only when the strategy is "lines" or "lines_strict". words is the
+// page's extracted text runs; consulted only for the "text" strategy.
+//
+// "explicit" returns nil here — the caller's explicit slice is
+// concatenated separately in findTableEdges.
+func (p *page) baseEdges(strategy TableStrategy, orientation layout.Orientation, lineLikeEdges []layout.Edge, words []Word, s TableSettings) []layout.Edge {
+	switch strategy {
+	case StrategyLines:
+		out := layout.FilterEdgesByOrientation(lineLikeEdges, orientation)
+		return out
+	case StrategyLinesStrict:
+		out := layout.FilterEdgesByOrientation(lineLikeEdges, orientation)
+		return layout.FilterEdgesBySource(out, layout.SourceLine)
+	case StrategyText:
+		if orientation == layout.Vertical {
+			return wordsToEdgesV(words, s.MinWordsVertical)
+		}
+		return wordsToEdgesH(words, s.MinWordsHorizontal)
+	case StrategyExplicit:
+		// Caller-supplied edges are concatenated elsewhere; the base
+		// set for the "explicit" strategy is empty.
+		return nil
+	default:
+		return nil
+	}
+}
+
 // FindTables runs the geometry-only pipeline (edges → intersections
 // → cells → tables) and returns one TableFinder per detected table
-// group. Strategies "text" and "explicit" return ErrUnsupported.
+// group. All four pdfplumber strategies (lines, lines_strict, text,
+// explicit) are supported; the two axes can use different strategies
+// independently.
 //
 // The returned slice is in visual top-to-bottom-left-to-right order
 // (sorted by the topmost-leftmost cell of each table).
 func (p *page) FindTables(settings TableSettings) ([]TableFinder, error) {
 	s := settings.applyDefaults()
 	if err := ensureSupportedStrategies(s); err != nil {
+		return nil, err
+	}
+	if err := validateExplicitForStrategy(s); err != nil {
 		return nil, err
 	}
 
@@ -546,6 +584,9 @@ func (p *page) FindTables(settings TableSettings) ([]TableFinder, error) {
 func (p *page) ExtractTables(settings TableSettings) ([]*Table, error) {
 	s := settings.applyDefaults()
 	if err := ensureSupportedStrategies(s); err != nil {
+		return nil, err
+	}
+	if err := validateExplicitForStrategy(s); err != nil {
 		return nil, err
 	}
 

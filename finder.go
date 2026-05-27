@@ -618,10 +618,10 @@ func runTableFinder(edges []layout.Edge, xTol, yTol float64) TableFinder {
 	}
 }
 
-// ensureSupportedStrategies returns an error if either strategy is
-// "text" or "explicit" — those are deferred to Phase 1.3.D (v0.3.0).
-// Returning a clear ErrUnsupported keeps callers from silently getting
-// empty results when they ask for a strategy we don't implement yet.
+// ensureSupportedStrategies validates that both axes' strategies are
+// one of the four pdfplumber-defined values. As of v0.3.0 all four
+// strategies (lines, lines_strict, text, explicit) are implemented;
+// the function now exists only to reject unknown strategy strings.
 func ensureSupportedStrategies(s TableSettings) error {
 	for _, pair := range []struct {
 		axis     string
@@ -631,15 +631,29 @@ func ensureSupportedStrategies(s TableSettings) error {
 		{"horizontal", s.HorizontalStrategy},
 	} {
 		switch pair.strategy {
-		case StrategyLines, StrategyLinesStrict:
+		case StrategyLines, StrategyLinesStrict, StrategyText, StrategyExplicit:
 			// ok
-		case StrategyText:
-			return fmt.Errorf("%w: %s_strategy=%q (Phase 1.3.D)", ErrUnsupported, pair.axis, pair.strategy)
-		case StrategyExplicit:
-			return fmt.Errorf("%w: %s_strategy=%q (Phase 1.3.D)", ErrUnsupported, pair.axis, pair.strategy)
 		default:
 			return fmt.Errorf("%w: unknown %s_strategy %q", ErrUnsupported, pair.axis, pair.strategy)
 		}
 	}
 	return nil
+}
+
+// errExplicitNeedsTwo is the error returned when the caller selects
+// the "explicit" strategy on an axis but supplies fewer than two
+// coordinates. pdfplumber raises ValueError with the same message.
+func errExplicitNeedsTwo(axis string) error {
+	return fmt.Errorf("pdftable: %s_strategy=%q requires at least two coordinates in Explicit%sLines",
+		axis, StrategyExplicit, axisFieldName(axis))
+}
+
+// axisFieldName returns the field-name suffix for the axis ("Vertical"
+// or "Horizontal") so error messages reference the actual struct field
+// the caller would need to populate.
+func axisFieldName(axis string) string {
+	if axis == "vertical" {
+		return "Vertical"
+	}
+	return "Horizontal"
 }

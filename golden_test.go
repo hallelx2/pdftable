@@ -72,7 +72,10 @@ func TestGoldenAgainstPdfplumber(t *testing.T) {
 		t.Fatalf("read golden dir: %v", err)
 	}
 
-	// Find every .expected.json and run a sub-test for each.
+	// Find every .expected.json (but NOT .tables.expected.json — the
+	// tables golden files have a different schema and are exercised
+	// by TestGoldenTablesAgainstPdfplumber below) and run a sub-test
+	// for each.
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -81,11 +84,138 @@ func TestGoldenAgainstPdfplumber(t *testing.T) {
 		if !strings.HasSuffix(name, ".expected.json") {
 			continue
 		}
+		if strings.HasSuffix(name, ".tables.expected.json") {
+			continue
+		}
 		stem := strings.TrimSuffix(name, ".expected.json")
 		t.Run(stem, func(t *testing.T) {
 			runGoldenCase(t, dir, stem)
 		})
 	}
+}
+
+// goldenTables is the schema written by scripts/gen_golden_tables.py
+// (or the inline snippet documented in CHANGELOG / README) — one
+// entry per page, with the page's `find_tables(...)` output captured
+// as a [][][]string per table.
+//
+// Cells in pdfplumber's output that contain "\n" run their cell text
+// across multiple visual lines; we compare after whitespace
+// normalisation so the Go output (which assembles cell text via the
+// dense extract_text path) is allowed to use either "\n" or " " as
+// the intra-cell separator. The token sequence must match exactly.
+type goldenTables struct {
+	Name  string             `json:"name"`
+	Pages []goldenTablesPage `json:"pages"`
+}
+
+type goldenTablesPage struct {
+	Number int          `json:"number"`
+	Width  float64      `json:"width"`
+	Height float64      `json:"height"`
+	Tables [][][]string `json:"tables"`
+}
+
+// TestGoldenTablesAgainstPdfplumber runs ExtractTables against each
+// fixture and asserts the table count, row count, column count, and
+// cell text (after whitespace normalisation) matches pdfplumber's
+// reference output.
+//
+// Pdfplumber occasionally produces cells whose text contains "\n"
+// (from intra-cell line breaks); our dense extract_text path joins
+// chars on the same visual line with spaces and lines with newlines,
+// so a 3-line cell in pdfplumber might be "A\nB\nC" while we
+// produce "A B C". We normalise both sides by collapsing runs of
+// whitespace into a single space and stripping leading/trailing
+// space.
+func TestGoldenTablesAgainstPdfplumber(t *testing.T) {
+	dir := filepath.Join("testdata", "golden")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read golden dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(name, ".tables.expected.json") {
+			continue
+		}
+		stem := strings.TrimSuffix(name, ".tables.expected.json")
+		t.Run(stem, func(t *testing.T) {
+			runGoldenTablesCase(t, dir, stem)
+		})
+	}
+}
+
+func runGoldenTablesCase(t *testing.T, dir, stem string) {
+	t.Helper()
+	pdfPath := filepath.Join(dir, stem+".pdf")
+	jsonPath := filepath.Join(dir, stem+".tables.expected.json")
+
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", jsonPath, err)
+	}
+	var g goldenTables
+	if err := json.Unmarshal(data, &g); err != nil {
+		t.Fatalf("parse %s: %v", jsonPath, err)
+	}
+
+	doc, err := pdftable.OpenFile(pdfPath)
+	if err != nil {
+		t.Fatalf("OpenFile %s: %v", pdfPath, err)
+	}
+	defer doc.Close()
+
+	for _, expPage := range g.Pages {
+		p, err := doc.Page(expPage.Number)
+		if err != nil {
+			t.Fatalf("Page(%d): %v", expPage.Number, err)
+		}
+		gotTables, err := p.ExtractTables(pdftable.DefaultTableSettings())
+		if err != nil {
+			t.Fatalf("ExtractTables: %v", err)
+		}
+		if len(gotTables) != len(expPage.Tables) {
+			t.Fatalf("page %d: got %d tables, want %d",
+				expPage.Number, len(gotTables), len(expPage.Tables))
+		}
+		for ti := range expPage.Tables {
+			wantTable := expPage.Tables[ti]
+			gotTable := gotTables[ti]
+			if len(gotTable.Rows) != len(wantTable) {
+				t.Errorf("page %d table %d: rows got %d, want %d",
+					expPage.Number, ti, len(gotTable.Rows), len(wantTable))
+				continue
+			}
+			for ri := range wantTable {
+				if len(gotTable.Rows[ri]) != len(wantTable[ri]) {
+					t.Errorf("page %d table %d row %d: cols got %d, want %d",
+						expPage.Number, ti, ri, len(gotTable.Rows[ri]), len(wantTable[ri]))
+					continue
+				}
+				for ci := range wantTable[ri] {
+					got := normaliseCellText(gotTable.Rows[ri][ci])
+					want := normaliseCellText(wantTable[ri][ci])
+					if got != want {
+						t.Errorf("page %d table %d cell [%d][%d]: got %q, want %q",
+							expPage.Number, ti, ri, ci, got, want)
+					}
+				}
+			}
+		}
+	}
+}
+
+// normaliseCellText collapses runs of whitespace into single spaces
+// and strips leading / trailing whitespace. Used to compare
+// pdftable's cell output against pdfplumber's: both sides should
+// agree on the token sequence even if the intra-cell line break
+// convention differs.
+func normaliseCellText(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func runGoldenCase(t *testing.T, dir, stem string) {

@@ -156,17 +156,20 @@ func (f *Font) CharWidth(cid uint16) float64 {
 
 // --- Predefined encodings ---------------------------------------------------
 //
-// We carry the three most common PDF base encodings (WinAnsi, MacRoman,
-// StandardEncoding) inline. Each table is 256 single-rune strings; the
-// missing slots (where the encoding has no mapping at all) stay as "".
+// The four PDF base encodings (StandardEncoding, WinAnsiEncoding,
+// MacRomanEncoding, PDFDocEncoding) are built from a single source of
+// truth — encodingRows — that mirrors pdfminer.six's latin_enc.py and
+// PDF Reference 1.7 Appendix D.2 ("Latin Character Set and Encodings",
+// pp. 925 in the 1.6 edition). Each row binds a glyph name to its
+// codepoint in each of the four encodings (or -1 if absent).
 //
-// These tables are correct for the printable ASCII range (32-126),
-// which is what 99% of PDFs actually use. Outside that range the
-// tables follow Adobe's published mappings — see PDF 1.7 Appendix D.2.
-// For uncommon control or accented characters that a particular PDF
-// uses without a /ToUnicode map, the worst case is that we render a
-// (cid:NNN) placeholder, which is the same behaviour as pdfminer and
-// pdfplumber when their internal tables miss a slot.
+// The named glyphs are mapped to Unicode via adobeGlyphTable, which
+// covers the full set of glyphs that appear in any of the encodings
+// plus the common additions that show up in PDFs' /Differences arrays
+// (Polish, Czech, Vietnamese accents, mathematical symbols, etc.).
+//
+// Indexing the encodings at runtime is O(1) — they're materialised
+// into [256]string tables in init().
 
 // EncodingByName returns the 256-entry cid→Unicode table for a base
 // encoding name. Returns the StandardEncoding (the PDF spec's default)
@@ -218,17 +221,44 @@ type Difference struct {
 // AdobeGlyphToUnicode resolves Adobe glyph names (e.g. "A", "comma",
 // "fi", "Adieresis", "uni0041") to Unicode strings.
 //
-// For names not in our minimal glyph table, we recognise two
-// conventional encodings:
+// Lookup order:
 //
-//   - "uniXXXX" or "uniXXXXXXXX..." → one or more UTF-16 hex codepoints.
-//   - "uXXXX" / "uXXXXX" / "uXXXXXX" → a single hex codepoint.
+//   - Exact match in adobeGlyphTable (~250 entries; the full set of
+//     glyphs referenced by any of the four PDF base encodings, plus
+//     common additions like fractions and arrows that appear in
+//     real-world /Differences arrays).
+//   - Compound names with "_" separators are split and each part is
+//     resolved recursively (per AGL spec §2 — "f_i" → "fi").
+//   - Variant suffixes (".alt", ".sc", ...) are stripped before lookup.
+//   - "uniXXXX"/"uniXXXXXXXX" → one or more UTF-16 hex codepoints.
+//   - "uXXXX".."uXXXXXX" → a single hex codepoint.
 //
 // Anything else returns "" — the caller falls back to a (cid:NNN)
 // placeholder.
 func AdobeGlyphToUnicode(name string) string {
 	if name == "" {
 		return ""
+	}
+	// AGL §2: strip variant suffix (".alt", ".sc", etc.).
+	if i := indexByte(name, '.'); i >= 0 {
+		name = name[:i]
+	}
+	// AGL §2: handle compound glyph names ("f_i", "f_f_i").
+	if i := indexByte(name, '_'); i >= 0 {
+		var out string
+		start := 0
+		for k := 0; k <= len(name); k++ {
+			if k == len(name) || name[k] == '_' {
+				part := AdobeGlyphToUnicode(name[start:k])
+				if part == "" {
+					return ""
+				}
+				out += part
+				start = k + 1
+			}
+		}
+		_ = i
+		return out
 	}
 	if r, ok := adobeGlyphTable[name]; ok {
 		return r
@@ -253,6 +283,15 @@ func AdobeGlyphToUnicode(name string) string {
 		}
 	}
 	return ""
+}
+
+func indexByte(s string, c byte) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
 }
 
 func allHex(s string) bool {
@@ -282,14 +321,22 @@ func parseHex(s string) int {
 	return v
 }
 
-// adobeGlyphTable is a minimal Adobe Glyph List for the glyphs that
-// /Differences arrays use most often. The full AGL is ~4500 entries;
-// we ship the printable-ASCII names + the handful of European accents
-// that appear in /Differences overlays in practice. Names not in this
-// table fall through to the uniXXXX / uXXXX recognisers above, which
-// covers the vast majority of remaining cases.
+// adobeGlyphTable maps Adobe glyph names to their Unicode string
+// equivalents. The entries are drawn from two sources:
+//
+//   - Every glyph referenced by the four PDF base encodings
+//     (StandardEncoding, MacRomanEncoding, WinAnsiEncoding,
+//     PDFDocEncoding) — required so that EncodingByName/ApplyDifferences
+//     produce correct output.
+//   - Common additions that appear in real-world /Differences arrays:
+//     fractions, math operators, ligatures, accented Eastern European
+//     letters, Greek letters, arrows.
+//
+// The mapping is exact-match with pdfminer.six's glyphlist.py for the
+// shared entries; anything not here falls through to the uniXXXX /
+// uXXXX recognisers in AdobeGlyphToUnicode.
 var adobeGlyphTable = map[string]string{
-	// ASCII letters/digits.
+	// --- ASCII letters and digits (printable identity range) --------
 	"A": "A", "B": "B", "C": "C", "D": "D", "E": "E", "F": "F",
 	"G": "G", "H": "H", "I": "I", "J": "J", "K": "K", "L": "L",
 	"M": "M", "N": "N", "O": "O", "P": "P", "Q": "Q", "R": "R",
@@ -300,17 +347,10 @@ var adobeGlyphTable = map[string]string{
 	"m": "m", "n": "n", "o": "o", "p": "p", "q": "q", "r": "r",
 	"s": "s", "t": "t", "u": "u", "v": "v", "w": "w", "x": "x",
 	"y": "y", "z": "z",
-	"zero":  "0",
-	"one":   "1",
-	"two":   "2",
-	"three": "3",
-	"four":  "4",
-	"five":  "5",
-	"six":   "6",
-	"seven": "7",
-	"eight": "8",
-	"nine":  "9",
-	// Punctuation.
+	"zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
+	"five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
+
+	// --- ASCII punctuation ------------------------------------------
 	"space":        " ",
 	"exclam":       "!",
 	"quotedbl":     "\"",
@@ -318,7 +358,6 @@ var adobeGlyphTable = map[string]string{
 	"dollar":       "$",
 	"percent":      "%",
 	"ampersand":    "&",
-	"quoteright":   "’",
 	"quotesingle":  "'",
 	"parenleft":    "(",
 	"parenright":   ")",
@@ -341,45 +380,175 @@ var adobeGlyphTable = map[string]string{
 	"asciicircum":  "^",
 	"underscore":   "_",
 	"grave":        "`",
-	"quoteleft":    "‘",
 	"braceleft":    "{",
 	"bar":          "|",
 	"braceright":   "}",
 	"asciitilde":   "~",
-	// Common ligatures.
-	"fi":  "fi",
-	"fl":  "fl",
-	"ffi": "ffi",
-	"ffl": "ffl",
-	// Common accented letters.
-	"Adieresis": "Ä",
-	"adieresis": "ä",
-	"Odieresis": "Ö",
-	"odieresis": "ö",
-	"Udieresis": "Ü",
-	"udieresis": "ü",
-	"germandbls": "ß",
-	"eacute":    "é",
-	"Eacute":    "É",
-	"egrave":    "è",
-	"agrave":    "à",
+
+	// --- Typographic punctuation (PDF Reference 1.7 Appendix D.2,
+	// the high range of StandardEncoding) ----------------------------
+	"quoteleft":      "‘", // ‘
+	"quoteright":     "’", // ’
+	"quotedblleft":   "“", // “
+	"quotedblright":  "”", // ”
+	"quotesinglbase": "‚", // ‚
+	"quotedblbase":   "„", // „
+	"endash":         "–", // –
+	"emdash":         "—", // —
+	"bullet":         "•", // •
+	"dagger":         "†", // †
+	"daggerdbl":      "‡", // ‡
+	"ellipsis":       "…", // …
+	"perthousand":    "‰", // ‰
+	"guilsinglleft":  "‹", // ‹
+	"guilsinglright": "›", // ›
+	"fraction":       "⁄", // ⁄
+	"trademark":      "™", // ™
+	"minus":          "−", // −
+
+	// --- Diacritical marks (PDF Reference 1.7 Appendix D.2) ---------
+	"acute":        "´",
+	"breve":        "˘",
+	"caron":        "ˇ",
+	"cedilla":      "¸",
+	"circumflex":   "ˆ",
+	"dieresis":     "¨",
+	"dotaccent":    "˙",
+	"hungarumlaut": "˝",
+	"macron":       "¯",
+	"ogonek":       "˛",
+	"ring":         "˚",
+	"tilde":        "˜",
+
+	// --- Latin-1 supplement (printable, 0xA0..0xFF) -----------------
+	"nbspace":        " ",
+	"exclamdown":     "¡",
+	"cent":           "¢",
+	"sterling":       "£",
+	"currency":       "¤",
+	"yen":            "¥",
+	"brokenbar":      "¦",
+	"section":        "§",
+	"copyright":      "©",
+	"ordfeminine":    "ª",
+	"guillemotleft":  "«",
+	"logicalnot":     "¬",
+	"registered":     "®",
+	"degree":         "°",
+	"plusminus":      "±",
+	"twosuperior":    "²",
+	"threesuperior":  "³",
+	"mu":             "µ",
+	"paragraph":      "¶",
+	"periodcentered": "·",
+	"onesuperior":    "¹",
+	"ordmasculine":   "º",
+	"guillemotright": "»",
+	"onequarter":     "¼",
+	"onehalf":        "½",
+	"threequarters":  "¾",
+	"questiondown":   "¿",
+
+	// --- Florin and Euro (PDF base encodings' typographic glyphs) ---
+	"florin": "ƒ", // ƒ
+	"Euro":   "€", // €
+
+	// --- Accented uppercase letters ---------------------------------
+	"AE":          "Æ",
+	"Aacute":      "Á",
+	"Acircumflex": "Â",
+	"Adieresis":   "Ä",
+	"Agrave":      "À",
+	"Aring":       "Å",
+	"Atilde":      "Ã",
+	"Ccedilla":    "Ç",
+	"Eacute":      "É",
+	"Ecircumflex": "Ê",
+	"Edieresis":   "Ë",
+	"Egrave":      "È",
+	"Eth":         "Ð",
+	"Iacute":      "Í",
+	"Icircumflex": "Î",
+	"Idieresis":   "Ï",
+	"Igrave":      "Ì",
+	"Lslash":      "Ł",
+	"Ntilde":      "Ñ",
+	"OE":          "Œ",
+	"Oacute":      "Ó",
+	"Ocircumflex": "Ô",
+	"Odieresis":   "Ö",
+	"Ograve":      "Ò",
+	"Oslash":      "Ø",
+	"Otilde":      "Õ",
+	"Scaron":      "Š",
+	"Thorn":       "Þ",
+	"Uacute":      "Ú",
+	"Ucircumflex": "Û",
+	"Udieresis":   "Ü",
+	"Ugrave":      "Ù",
+	"Yacute":      "Ý",
+	"Ydieresis":   "Ÿ",
+	"Zcaron":      "Ž",
+
+	// --- Accented lowercase letters ---------------------------------
+	"ae":          "æ",
+	"aacute":      "á",
 	"acircumflex": "â",
-	"ccedilla":   "ç",
-	"endash":     "–",
-	"emdash":     "—",
-	"bullet":     "•",
-	"quotedblleft":  "“",
-	"quotedblright": "”",
+	"adieresis":   "ä",
+	"agrave":      "à",
+	"aring":       "å",
+	"atilde":      "ã",
+	"ccedilla":    "ç",
+	"dotlessi":    "ı",
+	"eacute":      "é",
+	"ecircumflex": "ê",
+	"edieresis":   "ë",
+	"egrave":      "è",
+	"eth":         "ð",
+	"germandbls":  "ß",
+	"iacute":      "í",
+	"icircumflex": "î",
+	"idieresis":   "ï",
+	"igrave":      "ì",
+	"lslash":      "ł",
+	"ntilde":      "ñ",
+	"oe":          "œ",
+	"oacute":      "ó",
+	"ocircumflex": "ô",
+	"odieresis":   "ö",
+	"ograve":      "ò",
+	"oslash":      "ø",
+	"otilde":      "õ",
+	"scaron":      "š",
+	"thorn":       "þ",
+	"uacute":      "ú",
+	"ucircumflex": "û",
+	"udieresis":   "ü",
+	"ugrave":      "ù",
+	"yacute":      "ý",
+	"ydieresis":   "ÿ",
+	"zcaron":      "ž",
+
+	// --- Arithmetic symbols (Mac/WinAnsi/PDFDoc) --------------------
+	"multiply": "×",
+	"divide":   "÷",
+
+	// --- Common ligatures (used in /Differences arrays) -------------
+	"fi":  "ﬁ",
+	"fl":  "ﬂ",
+	"ff":  "ﬀ",
+	"ffi": "ﬃ",
+	"ffl": "ﬄ",
+	"longs": "ſ",
 }
 
 // --- Encoding tables -------------------------------------------------------
 //
-// The tables below cover the printable-ASCII range exactly per Adobe's
-// published encoding specs. We initialise them lazily in init(), since
-// 4×256-entry literal tables would be unwieldy to type out — instead
-// we build them from the small list of name→position pairs above plus
-// hard-coded exceptions for the few slots that differ between
-// encodings.
+// Initialised lazily in init() from encodingRows below. encodingRows
+// mirrors the canonical PDF 1.7 Appendix D.2 table (also in
+// pdfminer.six's pdfminer/latin_enc.py); each row binds a glyph name
+// to its codepoint in each of the four base encodings (or -1 if the
+// glyph is unmapped in that encoding).
 
 var (
 	standardEncoding [256]string
@@ -388,47 +557,275 @@ var (
 	pdfDocEncoding   [256]string
 )
 
+// encodingRow is one row of the PDF base-encoding table: a glyph name
+// plus its codepoint in StandardEncoding / MacRomanEncoding /
+// WinAnsiEncoding / PDFDocEncoding (each -1 if the glyph is unmapped
+// in that encoding).
+type encodingRow struct {
+	name           string
+	std, mac, win, pdf int
+}
+
+// encodingRows is the canonical PDF 1.7 Appendix D.2 table. Mirrors
+// pdfminer.six's pdfminer/latin_enc.py exactly so that any glyph
+// pdfplumber resolves, we also resolve.
+var encodingRows = []encodingRow{
+	{"A", 65, 65, 65, 65},
+	{"AE", 225, 174, 198, 198},
+	{"Aacute", -1, 231, 193, 193},
+	{"Acircumflex", -1, 229, 194, 194},
+	{"Adieresis", -1, 128, 196, 196},
+	{"Agrave", -1, 203, 192, 192},
+	{"Aring", -1, 129, 197, 197},
+	{"Atilde", -1, 204, 195, 195},
+	{"B", 66, 66, 66, 66},
+	{"C", 67, 67, 67, 67},
+	{"Ccedilla", -1, 130, 199, 199},
+	{"D", 68, 68, 68, 68},
+	{"E", 69, 69, 69, 69},
+	{"Eacute", -1, 131, 201, 201},
+	{"Ecircumflex", -1, 230, 202, 202},
+	{"Edieresis", -1, 232, 203, 203},
+	{"Egrave", -1, 233, 200, 200},
+	{"Eth", -1, -1, 208, 208},
+	{"Euro", -1, -1, 128, 160},
+	{"F", 70, 70, 70, 70},
+	{"G", 71, 71, 71, 71},
+	{"H", 72, 72, 72, 72},
+	{"I", 73, 73, 73, 73},
+	{"Iacute", -1, 234, 205, 205},
+	{"Icircumflex", -1, 235, 206, 206},
+	{"Idieresis", -1, 236, 207, 207},
+	{"Igrave", -1, 237, 204, 204},
+	{"J", 74, 74, 74, 74},
+	{"K", 75, 75, 75, 75},
+	{"L", 76, 76, 76, 76},
+	{"Lslash", 232, -1, -1, 149},
+	{"M", 77, 77, 77, 77},
+	{"N", 78, 78, 78, 78},
+	{"Ntilde", -1, 132, 209, 209},
+	{"O", 79, 79, 79, 79},
+	{"OE", 234, 206, 140, 150},
+	{"Oacute", -1, 238, 211, 211},
+	{"Ocircumflex", -1, 239, 212, 212},
+	{"Odieresis", -1, 133, 214, 214},
+	{"Ograve", -1, 241, 210, 210},
+	{"Oslash", 233, 175, 216, 216},
+	{"Otilde", -1, 205, 213, 213},
+	{"P", 80, 80, 80, 80},
+	{"Q", 81, 81, 81, 81},
+	{"R", 82, 82, 82, 82},
+	{"S", 83, 83, 83, 83},
+	{"Scaron", -1, -1, 138, 151},
+	{"T", 84, 84, 84, 84},
+	{"Thorn", -1, -1, 222, 222},
+	{"U", 85, 85, 85, 85},
+	{"Uacute", -1, 242, 218, 218},
+	{"Ucircumflex", -1, 243, 219, 219},
+	{"Udieresis", -1, 134, 220, 220},
+	{"Ugrave", -1, 244, 217, 217},
+	{"V", 86, 86, 86, 86},
+	{"W", 87, 87, 87, 87},
+	{"X", 88, 88, 88, 88},
+	{"Y", 89, 89, 89, 89},
+	{"Yacute", -1, -1, 221, 221},
+	{"Ydieresis", -1, 217, 159, 152},
+	{"Z", 90, 90, 90, 90},
+	{"Zcaron", -1, -1, 142, 153},
+	{"a", 97, 97, 97, 97},
+	{"aacute", -1, 135, 225, 225},
+	{"acircumflex", -1, 137, 226, 226},
+	{"acute", 194, 171, 180, 180},
+	{"adieresis", -1, 138, 228, 228},
+	{"ae", 241, 190, 230, 230},
+	{"agrave", -1, 136, 224, 224},
+	{"ampersand", 38, 38, 38, 38},
+	{"aring", -1, 140, 229, 229},
+	{"asciicircum", 94, 94, 94, 94},
+	{"asciitilde", 126, 126, 126, 126},
+	{"asterisk", 42, 42, 42, 42},
+	{"at", 64, 64, 64, 64},
+	{"atilde", -1, 139, 227, 227},
+	{"b", 98, 98, 98, 98},
+	{"backslash", 92, 92, 92, 92},
+	{"bar", 124, 124, 124, 124},
+	{"braceleft", 123, 123, 123, 123},
+	{"braceright", 125, 125, 125, 125},
+	{"bracketleft", 91, 91, 91, 91},
+	{"bracketright", 93, 93, 93, 93},
+	{"breve", 198, 249, -1, 24},
+	{"brokenbar", -1, -1, 166, 166},
+	{"bullet", 183, 165, 149, 128},
+	{"c", 99, 99, 99, 99},
+	{"caron", 207, 255, -1, 25},
+	{"ccedilla", -1, 141, 231, 231},
+	{"cedilla", 203, 252, 184, 184},
+	{"cent", 162, 162, 162, 162},
+	{"circumflex", 195, 246, 136, 26},
+	{"colon", 58, 58, 58, 58},
+	{"comma", 44, 44, 44, 44},
+	{"copyright", -1, 169, 169, 169},
+	{"currency", 168, 219, 164, 164},
+	{"d", 100, 100, 100, 100},
+	{"dagger", 178, 160, 134, 129},
+	{"daggerdbl", 179, 224, 135, 130},
+	{"degree", -1, 161, 176, 176},
+	{"dieresis", 200, 172, 168, 168},
+	{"divide", -1, 214, 247, 247},
+	{"dollar", 36, 36, 36, 36},
+	{"dotaccent", 199, 250, -1, 27},
+	{"dotlessi", 245, 245, -1, 154},
+	{"e", 101, 101, 101, 101},
+	{"eacute", -1, 142, 233, 233},
+	{"ecircumflex", -1, 144, 234, 234},
+	{"edieresis", -1, 145, 235, 235},
+	{"egrave", -1, 143, 232, 232},
+	{"eight", 56, 56, 56, 56},
+	{"ellipsis", 188, 201, 133, 131},
+	{"emdash", 208, 209, 151, 132},
+	{"endash", 177, 208, 150, 133},
+	{"equal", 61, 61, 61, 61},
+	{"eth", -1, -1, 240, 240},
+	{"exclam", 33, 33, 33, 33},
+	{"exclamdown", 161, 193, 161, 161},
+	{"f", 102, 102, 102, 102},
+	{"fi", 174, 222, -1, 147},
+	{"five", 53, 53, 53, 53},
+	{"fl", 175, 223, -1, 148},
+	{"florin", 166, 196, 131, 134},
+	{"four", 52, 52, 52, 52},
+	{"fraction", 164, 218, -1, 135},
+	{"g", 103, 103, 103, 103},
+	{"germandbls", 251, 167, 223, 223},
+	{"grave", 193, 96, 96, 96},
+	{"greater", 62, 62, 62, 62},
+	{"guillemotleft", 171, 199, 171, 171},
+	{"guillemotright", 187, 200, 187, 187},
+	{"guilsinglleft", 172, 220, 139, 136},
+	{"guilsinglright", 173, 221, 155, 137},
+	{"h", 104, 104, 104, 104},
+	{"hungarumlaut", 205, 253, -1, 28},
+	{"hyphen", 45, 45, 45, 45},
+	{"i", 105, 105, 105, 105},
+	{"iacute", -1, 146, 237, 237},
+	{"icircumflex", -1, 148, 238, 238},
+	{"idieresis", -1, 149, 239, 239},
+	{"igrave", -1, 147, 236, 236},
+	{"j", 106, 106, 106, 106},
+	{"k", 107, 107, 107, 107},
+	{"l", 108, 108, 108, 108},
+	{"less", 60, 60, 60, 60},
+	{"logicalnot", -1, 194, 172, 172},
+	{"lslash", 248, -1, -1, 155},
+	{"m", 109, 109, 109, 109},
+	{"macron", 197, 248, 175, 175},
+	{"minus", -1, -1, -1, 138},
+	{"mu", -1, 181, 181, 181},
+	{"multiply", -1, -1, 215, 215},
+	{"n", 110, 110, 110, 110},
+	{"nbspace", -1, 202, 160, -1},
+	{"nine", 57, 57, 57, 57},
+	{"ntilde", -1, 150, 241, 241},
+	{"numbersign", 35, 35, 35, 35},
+	{"o", 111, 111, 111, 111},
+	{"oacute", -1, 151, 243, 243},
+	{"ocircumflex", -1, 153, 244, 244},
+	{"odieresis", -1, 154, 246, 246},
+	{"oe", 250, 207, 156, 156},
+	{"ogonek", 206, 254, -1, 29},
+	{"ograve", -1, 152, 242, 242},
+	{"one", 49, 49, 49, 49},
+	{"onehalf", -1, -1, 189, 189},
+	{"onequarter", -1, -1, 188, 188},
+	{"onesuperior", -1, -1, 185, 185},
+	{"ordfeminine", 227, 187, 170, 170},
+	{"ordmasculine", 235, 188, 186, 186},
+	{"oslash", 249, 191, 248, 248},
+	{"otilde", -1, 155, 245, 245},
+	{"p", 112, 112, 112, 112},
+	{"paragraph", 182, 166, 182, 182},
+	{"parenleft", 40, 40, 40, 40},
+	{"parenright", 41, 41, 41, 41},
+	{"percent", 37, 37, 37, 37},
+	{"period", 46, 46, 46, 46},
+	{"periodcentered", 180, 225, 183, 183},
+	{"perthousand", 189, 228, 137, 139},
+	{"plus", 43, 43, 43, 43},
+	{"plusminus", -1, 177, 177, 177},
+	{"q", 113, 113, 113, 113},
+	{"question", 63, 63, 63, 63},
+	{"questiondown", 191, 192, 191, 191},
+	{"quotedbl", 34, 34, 34, 34},
+	{"quotedblbase", 185, 227, 132, 140},
+	{"quotedblleft", 170, 210, 147, 141},
+	{"quotedblright", 186, 211, 148, 142},
+	{"quoteleft", 96, 212, 145, 143},
+	{"quoteright", 39, 213, 146, 144},
+	{"quotesinglbase", 184, 226, 130, 145},
+	{"quotesingle", 169, 39, 39, 39},
+	{"r", 114, 114, 114, 114},
+	{"registered", -1, 168, 174, 174},
+	{"ring", 202, 251, -1, 30},
+	{"s", 115, 115, 115, 115},
+	{"scaron", -1, -1, 154, 157},
+	{"section", 167, 164, 167, 167},
+	{"semicolon", 59, 59, 59, 59},
+	{"seven", 55, 55, 55, 55},
+	{"six", 54, 54, 54, 54},
+	{"slash", 47, 47, 47, 47},
+	{"space", 32, 32, 32, 32},
+	{"space", -1, 202, 160, -1},
+	{"space", -1, 202, 173, -1},
+	{"sterling", 163, 163, 163, 163},
+	{"t", 116, 116, 116, 116},
+	{"thorn", -1, -1, 254, 254},
+	{"three", 51, 51, 51, 51},
+	{"threequarters", -1, -1, 190, 190},
+	{"threesuperior", -1, -1, 179, 179},
+	{"tilde", 196, 247, 152, 31},
+	{"trademark", -1, 170, 153, 146},
+	{"two", 50, 50, 50, 50},
+	{"twosuperior", -1, -1, 178, 178},
+	{"u", 117, 117, 117, 117},
+	{"uacute", -1, 156, 250, 250},
+	{"ucircumflex", -1, 158, 251, 251},
+	{"udieresis", -1, 159, 252, 252},
+	{"ugrave", -1, 157, 249, 249},
+	{"underscore", 95, 95, 95, 95},
+	{"v", 118, 118, 118, 118},
+	{"w", 119, 119, 119, 119},
+	{"x", 120, 120, 120, 120},
+	{"y", 121, 121, 121, 121},
+	{"yacute", -1, -1, 253, 253},
+	{"ydieresis", -1, 216, 255, 255},
+	{"yen", 165, 180, 165, 165},
+	{"z", 122, 122, 122, 122},
+	{"zcaron", -1, -1, 158, 158},
+	{"zero", 48, 48, 48, 48},
+}
+
 func init() {
-	// Printable ASCII identity, valid across all four encodings.
-	for i := 0x20; i < 0x7f; i++ {
-		s := string(rune(i))
-		standardEncoding[i] = s
-		winAnsiEncoding[i] = s
-		macRomanEncoding[i] = s
-		pdfDocEncoding[i] = s
-	}
-	// WinAnsi: the high range adds the Windows-1252 supplement
-	// (smart quotes, em/en dashes, euro, etc.). We only populate
-	// the slots that real PDFs actually emit.
-	winAnsiEncoding[0x80] = "€" // euro
-	winAnsiEncoding[0x82] = "‚"
-	winAnsiEncoding[0x83] = "ƒ"
-	winAnsiEncoding[0x84] = "„"
-	winAnsiEncoding[0x85] = "…" // ellipsis
-	winAnsiEncoding[0x86] = "†"
-	winAnsiEncoding[0x87] = "‡"
-	winAnsiEncoding[0x88] = "ˆ"
-	winAnsiEncoding[0x89] = "‰"
-	winAnsiEncoding[0x8a] = "Š"
-	winAnsiEncoding[0x8b] = "‹"
-	winAnsiEncoding[0x8c] = "Œ"
-	winAnsiEncoding[0x8e] = "Ž"
-	winAnsiEncoding[0x91] = "‘"
-	winAnsiEncoding[0x92] = "’"
-	winAnsiEncoding[0x93] = "“"
-	winAnsiEncoding[0x94] = "”"
-	winAnsiEncoding[0x95] = "•" // bullet
-	winAnsiEncoding[0x96] = "–" // en dash
-	winAnsiEncoding[0x97] = "—" // em dash
-	winAnsiEncoding[0x98] = "˜"
-	winAnsiEncoding[0x99] = "™"
-	winAnsiEncoding[0x9a] = "š"
-	winAnsiEncoding[0x9b] = "›"
-	winAnsiEncoding[0x9c] = "œ"
-	winAnsiEncoding[0x9e] = "ž"
-	winAnsiEncoding[0x9f] = "Ÿ"
-	// Latin-1 supplement (0xa0..0xff): WinAnsi matches Latin-1 here.
-	for i := 0xa0; i < 0x100; i++ {
-		winAnsiEncoding[i] = string(rune(i))
+	for _, r := range encodingRows {
+		u := AdobeGlyphToUnicode(r.name)
+		if u == "" {
+			// All names in encodingRows have an entry in
+			// adobeGlyphTable by construction. If a future edit
+			// adds a row without a glyph mapping the encoding
+			// will silently lose that slot; the unit test in
+			// font_test.go guards against this.
+			continue
+		}
+		if r.std >= 0 && r.std < 256 {
+			standardEncoding[r.std] = u
+		}
+		if r.mac >= 0 && r.mac < 256 {
+			macRomanEncoding[r.mac] = u
+		}
+		if r.win >= 0 && r.win < 256 {
+			winAnsiEncoding[r.win] = u
+		}
+		if r.pdf >= 0 && r.pdf < 256 {
+			pdfDocEncoding[r.pdf] = u
+		}
 	}
 }

@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-05-27
+
+### Fixed
+
+- StandardEncoding, WinAnsiEncoding, MacRomanEncoding, and
+  PDFDocEncoding are now driven from a single source of truth
+  (`encodingRows`) that mirrors pdfminer.six's `latin_enc.py` and PDF
+  Reference 1.7 Appendix D.2. The previous tables silently dropped
+  ~32 named glyphs per encoding outside printable ASCII — most
+  visibly the smart quotes (`’ ‘ “ ”`), en/em dashes (`– —`),
+  bullet (`•`), florin (`ƒ`), and dagger marks (`† ‡`). PDFs that
+  used these without a `/ToUnicode` map (the common case for PDF/A
+  filings, SEC 10-Ks, and most LaTeX-emitted documents) returned
+  empty or garbled text where these glyphs appeared.
+- `AdobeGlyphToUnicode` now resolves the full Adobe Glyph List for
+  common Latin/typographic glyphs (~250 entries) instead of a minimal
+  ~30-entry table. Added support for AGL §2 compound names (`f_i`
+  decomposes to `fi`) and variant suffixes (`.alt`, `.sc` are
+  stripped before lookup).
+- StandardEncoding now correctly maps slot 0x27 to `quoteright`
+  (`’`, U+2019) and 0x60 to `quoteleft` (`‘`, U+2018), matching the
+  PDF spec. WinAnsi/MacRoman/PDFDoc keep ASCII `'` and `` ` `` at
+  those slots, as the spec requires.
+
+### Note
+
+This is a behavior change for callers that depended on the pre-v0.1.1
+ASCII-identity behavior of StandardEncoding at 0x27 / 0x60. The new
+behavior is spec-correct and matches what pdfplumber, pdfminer.six,
+and Ghostscript emit for the same input.
+
 ## [0.1.0] - 2026-05-26
 
 Phase 1.3.B — words and text extraction. Direct port of pdfplumber's
@@ -96,5 +127,6 @@ Initial release. Phase 1.3.A — content-stream primitives layer.
 - Type 3 fonts (their glyph procedures are themselves content streams).
 - Vertical writing mode.
 
+[0.1.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.1
 [0.1.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.0
 [0.0.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.0.1

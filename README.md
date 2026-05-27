@@ -19,9 +19,10 @@ heuristics on. This is that.
 
 ## Status
 
-`v0.1.0` — words and text extraction. `Page.Words`, `Page.ExtractText`,
-and `Page.ExtractTextSimple` ship with this release; table-finding
-(`FindTables`, `ExtractTables`) is the next phase.
+`v0.2.0` — line-strategy table finding. `Page.FindTables` and
+`Page.ExtractTables` ship with this release covering the `lines` and
+`lines_strict` strategies (PDFs with ruled tables). `text` and
+`explicit` strategies return `ErrUnsupported` and land in v0.3.0.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/hallelx2/pdftable.svg)](https://pkg.go.dev/github.com/hallelx2/pdftable)
 [![CI](https://github.com/hallelx2/pdftable/actions/workflows/test.yml/badge.svg)](https://github.com/hallelx2/pdftable/actions/workflows/test.yml)
@@ -30,7 +31,7 @@ and `Page.ExtractTextSimple` ship with this release; table-finding
 ## Install
 
 ```sh
-go get github.com/hallelx2/pdftable@v0.1.0
+go get github.com/hallelx2/pdftable@v0.2.0
 ```
 
 Requires Go 1.25+ (uses the standard-library `iter` package for the `Pages()` range-over-func iterator, and pdfcpu v0.12+).
@@ -111,6 +112,10 @@ type Page interface {
     Words(opts WordOpts) ([]Word, error)
     ExtractText(opts TextOpts) (string, error)
     ExtractTextSimple(xTolerance, yTolerance float64) (string, error)
+
+    // New in v0.2.0: line-strategy table finding.
+    FindTables(settings TableSettings) ([]TableFinder, error)
+    ExtractTables(settings TableSettings) ([]*Table, error)
 }
 
 // Primitives.
@@ -206,6 +211,91 @@ laid, _ := page.ExtractText(opts)
 fmt.Println(laid)
 ```
 
+## Tables (lines strategy)
+
+`Page.ExtractTables` is the table-detection entry point. It runs the
+edges → intersections → cells → tables pipeline (a direct port of
+pdfplumber's `TableFinder`) and returns one `*Table` per detected
+ruled table, with cell text already extracted.
+
+```go
+doc, _ := pdftable.OpenFile("invoice.pdf")
+defer doc.Close()
+page, _ := doc.Page(1)
+
+settings := pdftable.DefaultTableSettings()
+// settings.VerticalStrategy = pdftable.StrategyLinesStrict  // ignore rect outlines
+
+tables, _ := page.ExtractTables(settings)
+for ti, t := range tables {
+    fmt.Printf("table %d: %d rows × %d cols at %+v\n",
+        ti, len(t.Rows), len(t.Rows[0]), t.BBox)
+    for _, row := range t.Rows {
+        fmt.Println(row)
+    }
+}
+```
+
+`TableSettings` defaults match pdfplumber's
+(`snap_tolerance=3`, `join_tolerance=3`, `edge_min_length=3`,
+`intersection_tolerance=3`, `text_tolerance=3`). Override any field
+on the value returned from `DefaultTableSettings()` to tighten or
+loosen the heuristics. The two implemented strategies are:
+
+- `StrategyLines` — edges come from drawn `Line` segments, `Rect`
+  outlines (all four sides), and axis-aligned `Curve` segments.
+  Default. Best for typical PDFs whose tables have rule lines.
+- `StrategyLinesStrict` — only drawn `Line` segments are used. Use
+  this when your PDF draws cell BACKGROUNDS as filled rectangles
+  that you do NOT want treated as row boundaries.
+
+`StrategyText` (word-alignment-based) and `StrategyExplicit`
+(caller-supplied edges) return `ErrUnsupported` in v0.2.0 — they
+land in v0.3.0.
+
+### Side-by-side: pdfplumber → pdftable
+
+```python
+# Python (pdfplumber)
+import pdfplumber
+
+with pdfplumber.open("invoice.pdf") as pdf:
+    page = pdf.pages[0]
+    for table in page.find_tables({"vertical_strategy": "lines",
+                                    "horizontal_strategy": "lines"}):
+        for row in table.extract():
+            print(row)
+```
+
+```go
+// Go (pdftable)
+import "github.com/hallelx2/pdftable"
+
+doc, _ := pdftable.OpenFile("invoice.pdf")
+defer doc.Close()
+page, _ := doc.Page(1)
+
+settings := pdftable.DefaultTableSettings()
+settings.VerticalStrategy = pdftable.StrategyLines
+settings.HorizontalStrategy = pdftable.StrategyLines
+
+tables, _ := page.ExtractTables(settings)
+for _, t := range tables {
+    for _, row := range t.Rows {
+        fmt.Println(row)
+    }
+}
+```
+
+The two outputs match cell-for-cell on ruled fixtures (see
+`testdata/golden/issue-466-example.*` for the parity test). Field
+naming differs in the obvious places: pdftable returns a slice of
+`*Table` instead of `Table` objects you have to call `.extract()`
+on; rows are `[]string` instead of `list[Optional[str]]` (missing
+cells produce `""` rather than `nil`); and table bboxes use
+`(X0, Y0, X1, Y1)` PDF user space rather than pdfplumber's
+image-space `(x0, top, x1, bottom)`.
+
 ## Side-by-side comparison with pdfplumber
 
 ```python
@@ -299,16 +389,21 @@ pdftable/
 ├── page.go            // Page interface + implementation
 ├── char.go            // Public Char / Line / Rect / Curve / Objects
 ├── text.go            // Word + ExtractText + ExtractTextSimple (v0.1.0)
+├── table.go           // TableStrategy / TableSettings / Table types (v0.2.0)
+├── finder.go          // Cells-from-edges algorithm (v0.2.0)
 ├── clustering.go      // 1-D clusterObjects, groupObjectsByAttr, dedupeChars
 ├── geometry.go        // BBox helpers: Union, Intersect, Contains, Snap
 ├── errors.go          // Sentinel errors
-└── internal/pdf/
-    ├── reader.go      // pdfcpu bridge
-    ├── content.go     // Content-stream interpreter
-    ├── ops.go         // Operator dispatch table
-    ├── state.go       // Graphics + text state, matrix math
-    ├── font.go        // Font + encoding tables + glyph-name resolution
-    └── cmap.go        // ToUnicode CMap parser
+└── internal/
+    ├── layout/
+    │   └── lines.go   // Edge type + snap/join/filter pipeline (v0.2.0)
+    └── pdf/
+        ├── reader.go      // pdfcpu bridge
+        ├── content.go     // Content-stream interpreter
+        ├── ops.go         // Operator dispatch table
+        ├── state.go       // Graphics + text state, matrix math
+        ├── font.go        // Font + encoding tables + glyph-name resolution
+        └── cmap.go        // ToUnicode CMap parser
 ```
 
 The public `pdftable` package is small and stable. The `internal/pdf`
@@ -333,12 +428,15 @@ stdlib-only.
 
 - `v0.0.x` — content-stream primitives.
 - `v0.1.x` — text extraction: `Page.ExtractText`, `Page.Words`,
-  `Page.ExtractTextSimple` (this release).
-- `v0.2.x` — table finding: `Page.FindTables` using ruling-line +
-  whitespace heuristics, `Page.ExtractTables` returning row/cell text.
-  Bundle the standard-14 AFM metrics so word bboxes match pdfplumber
-  to within 1 PDF point.
-- `v0.3.x` — performance pass: parser benchmarking against pdfminer.six
+  `Page.ExtractTextSimple`.
+- `v0.2.x` — table finding via ruling lines (this release):
+  `Page.FindTables` / `Page.ExtractTables` covering the `lines` and
+  `lines_strict` strategies.
+- `v0.3.x` — remaining table strategies: `text` (word-alignment
+  edges) and `explicit` (caller-supplied edges). Bundle the
+  standard-14 AFM metrics so word bboxes (and therefore cell text)
+  match pdfplumber to within 1 PDF point on standard fonts.
+- `v0.4.x` — performance pass: parser benchmarking against pdfminer.six
   and pdfplumber on a representative document corpus.
 
 ## License

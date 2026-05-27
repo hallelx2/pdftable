@@ -1,0 +1,4 @@
+* text=auto eol=lf
+
+# Binary fixtures — keep raw bytes intact across platforms.
+*.pdf binary

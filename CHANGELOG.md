@@ -5,6 +5,98 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-05-27
+
+Phase 1.3.C — table-finding via ruled lines. Direct port of
+pdfplumber's `TableFinder` + cells-from-edges algorithm (`table.py`).
+The v0.1.x public API surface is unchanged; v0.2.0 only adds methods
+to the `Page` interface and new top-level types, so existing callers
+compile and run as-is.
+
+### Added
+
+- `Page.FindTables(settings TableSettings) ([]TableFinder, error)` —
+  geometry-only stage of the pipeline. Returns one TableFinder per
+  detected table group with the merged edges, intersections, raw
+  cells, and assembled per-table CellsGrid exposed for debugging /
+  custom rendering.
+- `Page.ExtractTables(settings TableSettings) ([]*Table, error)` —
+  wraps FindTables, runs per-cell text extraction, returns fully
+  populated `Table` structs. Cell text is the dense extract\_text
+  output for chars whose centre point falls inside the cell bbox,
+  with leading / trailing whitespace stripped. Empty cells produce
+  `""`.
+- `TableSettings` struct with `DefaultTableSettings()` constructor
+  carrying pdfplumber-matching defaults (snap\_tolerance=3,
+  join\_tolerance=3, edge\_min\_length=3, edge\_min\_length\_prefilter=1,
+  intersection\_tolerance=3, text\_tolerance=3).
+- `TableStrategy` enum with constants `StrategyLines`,
+  `StrategyLinesStrict`, `StrategyText`, `StrategyExplicit`. Only
+  `StrategyLines` and `StrategyLinesStrict` are implemented in this
+  release; `StrategyText` and `StrategyExplicit` are deferred to
+  v0.3.0 and return `ErrUnsupported` (with a clear "Phase 1.3.D"
+  message) so callers don't get silent empty results.
+- `Table` (rows × columns of cell text + bbox + per-cell bbox grid),
+  `TableFinder` (edges + intersections + cells + tables), `TableBox`
+  (one assembled table's geometry: bbox + Rows × Cols grid),
+  `Intersection` (one edge-crossing point with its participating
+  vertical and horizontal edges).
+- Internal `internal/layout` package: `Edge` type with `FromLine`,
+  `FromRect`, `FromCurve` constructors, plus the snap → join →
+  filter pipeline (`SnapEdges`, `JoinEdges`, `MergeEdges`,
+  `FilterEdgesByLength`, `FilterEdgesBySource`,
+  `FilterEdgesByOrientation`, `SortEdges`).
+- Golden-file parity test against pdfplumber's `find_tables({"lines"})`
+  on the `issue-466-example.pdf` fixture (4×3 + 2×3 ruled tables).
+  Test infrastructure (`TestGoldenTablesAgainstPdfplumber` in
+  `golden_test.go`) loads any `*.tables.expected.json` fixture in
+  `testdata/golden/` and compares cell-for-cell after whitespace
+  normalisation. Regenerate via `python scripts/gen_golden.py`.
+- New hand-crafted fixture: `testdata.TableRuled()` — minimal
+  2-column × 3-row ruled table with predictable text ("Name", "Age";
+  "Alice", "30"; "Bob", "25") for unit testing the public API
+  surface without depending on third-party PDFs. Generator script
+  at `scripts/gen_table_fixture.go`.
+- Algorithm-level unit tests in `table_test.go`: hand-crafted edge
+  lists exercising `edgesToIntersections`, `intersectionsToCells`,
+  `cellsToTables`, `assembleTableBox`, and the full `runTableFinder`
+  pipeline.
+- README "Tables" section with a side-by-side Go / pdfplumber
+  example. The example is also extracted as a runnable program at
+  `examples/extract_tables/main.go` so changes to the API surface
+  break the example at build time.
+
+### Deferred (planned for v0.3.0 — Phase 1.3.D)
+
+- `StrategyText`: infer table edges from word alignment (clusters of
+  words sharing x0 / x1 / centre, clusters of words sharing top /
+  bottom). Useful for PDFs whose tables have no ruled lines (e.g.
+  banking statements, scanned-then-OCR'd documents).
+- `StrategyExplicit`: caller-supplied edges via
+  `TableSettings.ExplicitVerticalLines` /
+  `ExplicitHorizontalLines`. In v0.2.0 these settings are accepted
+  and added on top of the derived edges (helpful when a column
+  boundary isn't drawn), but they don't form the only source of
+  edges yet.
+
+### Known limitations
+
+- The cell-text extraction shares the v0.1.x word-grouping engine,
+  which depends on font metrics. Cells whose glyphs use standard-14
+  fonts WITHOUT the bundled AFM tables can have intra-word gaps
+  reported as "no gap" — e.g. "Hello World" comes out as
+  "HelloWorld". This was already documented for v0.1.0; for v0.2.0
+  it means the parity test against
+  `la-precinct-bulletin-2014-p1.pdf` (which uses Helvetica-Bold)
+  fails on cell text equality. The fixture is not checked in to
+  avoid CI noise; it'll be re-added once the AFM bundle lands in
+  v0.2.x.
+- `senate-expenditures.pdf` produces 7 cells where pdfplumber finds
+  10. The divergence is in how snap+join unifies edges that share a
+  near-collinear endpoint but differ slightly in the perpendicular
+  axis; under investigation as a follow-up issue. The fixture is
+  not in the golden set yet.
+
 ## [0.1.1] - 2026-05-27
 
 ### Fixed
@@ -127,6 +219,7 @@ Initial release. Phase 1.3.A — content-stream primitives layer.
 - Type 3 fonts (their glyph procedures are themselves content streams).
 - Vertical writing mode.
 
+[0.2.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.2.0
 [0.1.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.1
 [0.1.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.0
 [0.0.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.0.1

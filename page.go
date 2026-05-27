@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hallelx2/pdftable/internal/layout"
 	"github.com/hallelx2/pdftable/internal/pdf"
 )
 
@@ -92,6 +93,28 @@ type Page interface {
 	// when ExtractText's word-grouping heuristics produce undesired
 	// results on adversarial input.
 	ExtractTextSimple(xTolerance, yTolerance float64) (string, error)
+
+	// FindTables runs the geometry-only stage of the table-finding
+	// pipeline: derive edges from the page primitives, snap+join
+	// into rulers, scan for intersections, assemble cells, group
+	// cells into tables. Returns one TableFinder per detected
+	// table-group so callers building debugging tools can inspect
+	// the intermediate stages (edges / intersections / raw cells)
+	// alongside the assembled per-table CellsGrid.
+	//
+	// v0.2.0 supports VerticalStrategy / HorizontalStrategy values
+	// of "lines" and "lines_strict". Passing "text" or "explicit"
+	// returns ErrUnsupported — those strategies land in Phase 1.3.D
+	// (v0.3.0).
+	FindTables(settings TableSettings) ([]TableFinder, error)
+
+	// ExtractTables wraps FindTables and runs per-cell text
+	// extraction on every detected table. Cells with no chars
+	// produce an empty string. Leading and trailing whitespace
+	// inside each cell is stripped. Returns the slice of fully
+	// populated Table structs in visual top-to-bottom-left-to-right
+	// order.
+	ExtractTables(settings TableSettings) ([]*Table, error)
 }
 
 // page is the unexported implementation backing the Page interface.
@@ -360,4 +383,255 @@ func charsJoinedText(chars []Char) string {
 		sb.WriteString(c.Text)
 	}
 	return sb.String()
+}
+
+// findTableEdges derives the input-edge slice for the table-finding
+// pipeline from the page's primitives. The pipeline:
+//
+//  1. Walk the page once via Objects(), so we pay the content-stream
+//     parse cost a single time rather than once per primitive type.
+//  2. Convert every Line / Rect / Curve into one or more layout.Edge
+//     instances. Lines produce 0 or 1 edge; Rects produce 4; Curves
+//     produce one per axis-aligned segment.
+//  3. For lines_strict, drop SourceRect and SourceCurve edges before
+//     the prefilter.
+//  4. Apply the prefilter (drop edges shorter than
+//     EdgeMinLengthPrefilter — pdfplumber default 1 pt).
+//  5. Merge (snap onto cluster means, then join collinear edges
+//     within JoinTolerance).
+//  6. Apply the post-merge length filter (drop edges shorter than
+//     EdgeMinLength — pdfplumber default 3 pt).
+//
+// The returned slice is the input both the vertical and horizontal
+// stages share — pdfplumber's TableFinder.get_edges takes the union
+// of vertical-strategy edges and horizontal-strategy edges and runs
+// the merge across both at once. We do the same, but with one
+// wrinkle: if the two strategies differ ("lines" + "lines_strict"),
+// we apply the source-filter PER ORIENTATION so a strict horizontal
+// strategy can still benefit from rect-derived vertical edges and
+// vice versa. The pdfplumber implementation handles this implicitly
+// because its filter_edges receives the requested orientation as an
+// argument; our code mirrors that branch explicitly.
+func (p *page) findTableEdges(s TableSettings) ([]layout.Edge, error) {
+	objs, err := p.Objects()
+	if err != nil {
+		return nil, err
+	}
+
+	tol := 0.1 // near-axis-aligned slack for FromLine/FromCurve
+	rawEdges := make([]layout.Edge, 0, len(objs.Lines)+4*len(objs.Rects)+2*len(objs.Curves))
+
+	for _, l := range objs.Lines {
+		if e, ok := layout.FromLine(layout.LineSegment{
+			X0: l.X0, Y0: l.Y0, X1: l.X1, Y1: l.Y1, Width: l.Width,
+		}, tol); ok {
+			rawEdges = append(rawEdges, e)
+		}
+	}
+	for _, r := range objs.Rects {
+		rawEdges = append(rawEdges, layout.FromRect(layout.RectSegment{
+			X0: r.X0, Y0: r.Y0, X1: r.X1, Y1: r.Y1, Width: r.Width,
+		})...)
+	}
+	for _, c := range objs.Curves {
+		rawEdges = append(rawEdges, layout.FromCurve(layout.CurveSegment{
+			Points: c.Points, Width: c.Width,
+		}, tol)...)
+	}
+
+	// Per-orientation source filter: lines_strict on an axis drops
+	// non-line sources on that axis. We split into v/h, filter each
+	// according to its own strategy, then recombine before the
+	// length filter and merge.
+	vEdges := layout.FilterEdgesByOrientation(rawEdges, layout.Vertical)
+	hEdges := layout.FilterEdgesByOrientation(rawEdges, layout.Horizontal)
+
+	if s.VerticalStrategy == StrategyLinesStrict {
+		vEdges = layout.FilterEdgesBySource(vEdges, layout.SourceLine, layout.SourceExplicit)
+	}
+	if s.HorizontalStrategy == StrategyLinesStrict {
+		hEdges = layout.FilterEdgesBySource(hEdges, layout.SourceLine, layout.SourceExplicit)
+	}
+
+	// Explicit overrides are added on top of the derived edges.
+	// pdfplumber accepts these even with the lines / lines_strict
+	// strategies (the "explicit" strategy itself replaces the
+	// derived edges; that strategy is deferred to v0.3.0).
+	for _, x := range s.ExplicitVerticalLines {
+		vEdges = append(vEdges, layout.Edge{
+			X0: x, X1: x,
+			Y0: 0, Y1: p.Height(),
+			Orientation: layout.Vertical,
+			Source:      layout.SourceExplicit,
+		})
+	}
+	for _, y := range s.ExplicitHorizontalLines {
+		hEdges = append(hEdges, layout.Edge{
+			X0: 0, X1: p.Width(),
+			Y0: y, Y1: y,
+			Orientation: layout.Horizontal,
+			Source:      layout.SourceExplicit,
+		})
+	}
+
+	combined := make([]layout.Edge, 0, len(vEdges)+len(hEdges))
+	combined = append(combined, vEdges...)
+	combined = append(combined, hEdges...)
+
+	// Prefilter (drop hairline construction segments). pdfplumber
+	// applies edge_min_length_prefilter BEFORE merging.
+	combined = layout.FilterEdgesByLength(combined, s.EdgeMinLengthPrefilter)
+
+	// Merge: snap onto cluster means, then join collinear segments
+	// that touch within JoinTolerance.
+	merged := layout.MergeEdges(combined, s.SnapTolerance, s.SnapTolerance, s.JoinTolerance, s.JoinTolerance)
+
+	// Post-merge length filter (drop short stubs).
+	merged = layout.FilterEdgesByLength(merged, s.EdgeMinLength)
+
+	return merged, nil
+}
+
+// FindTables runs the geometry-only pipeline (edges → intersections
+// → cells → tables) and returns one TableFinder per detected table
+// group. Strategies "text" and "explicit" return ErrUnsupported.
+//
+// The returned slice is in visual top-to-bottom-left-to-right order
+// (sorted by the topmost-leftmost cell of each table).
+func (p *page) FindTables(settings TableSettings) ([]TableFinder, error) {
+	s := settings.applyDefaults()
+	if err := ensureSupportedStrategies(s); err != nil {
+		return nil, err
+	}
+
+	edges, err := p.findTableEdges(s)
+	if err != nil {
+		return nil, err
+	}
+	if len(edges) == 0 {
+		return nil, nil
+	}
+
+	intersections := edgesToIntersections(edges, s.IntersectionTolerance, s.IntersectionTolerance)
+	cells := intersectionsToCells(intersections)
+	groups := cellsToTables(cells)
+
+	out := make([]TableFinder, 0, len(groups))
+	for _, g := range groups {
+		out = append(out, TableFinder{
+			Edges:         edges,
+			Intersections: intersections,
+			Cells:         cells,
+			Tables:        []TableBox{assembleTableBox(g)},
+		})
+	}
+	return out, nil
+}
+
+// ExtractTables runs FindTables then fills each cell with the text
+// of the chars whose centre lies inside the cell's bbox. Empty cells
+// produce "". Leading/trailing whitespace is stripped per cell.
+//
+// The char-in-cell test matches pdfplumber's Table.extract:
+//
+//	v_mid = (char.top + char.bottom) / 2
+//	h_mid = (char.x0 + char.x1) / 2
+//	(h_mid >= x0) AND (h_mid < x1) AND (v_mid >= top) AND (v_mid < bottom)
+//
+// Translating from pdfplumber's image space to PDF user space: "top"
+// becomes the larger Y, "bottom" becomes the smaller Y; the inclusive
+// / exclusive convention on the right and bottom edges stays the
+// same so a glyph sitting EXACTLY on a column boundary lands in the
+// left column.
+func (p *page) ExtractTables(settings TableSettings) ([]*Table, error) {
+	s := settings.applyDefaults()
+	if err := ensureSupportedStrategies(s); err != nil {
+		return nil, err
+	}
+
+	finders, err := p.FindTables(s)
+	if err != nil {
+		return nil, err
+	}
+	if len(finders) == 0 {
+		return nil, nil
+	}
+
+	chars, err := p.Chars()
+	if err != nil {
+		return nil, err
+	}
+
+	tables := make([]*Table, 0, len(finders))
+	for _, f := range finders {
+		for _, tb := range f.Tables {
+			t := assembleTableText(tb, chars, s, p.number)
+			tables = append(tables, t)
+		}
+	}
+	return tables, nil
+}
+
+// assembleTableText fills the per-cell text grid for one TableBox by
+// (a) filtering the page's chars by centre-in-cell-bbox, (b) running
+// the existing word extractor + dense text join over the cell's
+// chars, and (c) trimming whitespace.
+func assembleTableText(tb TableBox, chars []Char, s TableSettings, pageNumber int) *Table {
+	rows := make([][]string, tb.Rows)
+	for i := range rows {
+		rows[i] = make([]string, tb.Cols)
+	}
+
+	textOpts := DefaultTextOpts()
+	textOpts.XTolerance = s.TextTolerance
+	textOpts.YTolerance = s.TextTolerance
+
+	wordOpts := DefaultWordOpts()
+	wordOpts.XTolerance = s.TextTolerance
+	wordOpts.YTolerance = s.TextTolerance
+	wordOpts.KeepBlankChars = s.KeepBlankChars
+
+	for ri, row := range tb.CellsGrid {
+		for ci, cell := range row {
+			if cell.IsZero() {
+				rows[ri][ci] = ""
+				continue
+			}
+			cellChars := charsInCell(chars, cell)
+			if len(cellChars) == 0 {
+				rows[ri][ci] = ""
+				continue
+			}
+			text := extractTextFromChars(cellChars, textOpts)
+			rows[ri][ci] = strings.TrimSpace(text)
+		}
+	}
+
+	return &Table{
+		Rows:      rows,
+		BBox:      tb.BBox,
+		Page:      pageNumber,
+		CellsBBox: tb.CellsGrid,
+	}
+}
+
+// charsInCell returns the chars whose centre point lies inside the
+// supplied bbox. Mirrors pdfplumber's char_in_bbox predicate, which
+// is the right thing for cell extraction: a glyph that straddles two
+// cells gets assigned to the cell containing its visual centre, not
+// to both.
+//
+// Inclusive on x0 / y0 (bottom-left), exclusive on x1 / y1 (top-
+// right). The exclusivity makes the boundary deterministic — a glyph
+// sitting at exactly the column boundary goes into the left column.
+func charsInCell(chars []Char, cell BBox) []Char {
+	out := make([]Char, 0, len(chars))
+	for _, c := range chars {
+		hMid := (c.X0 + c.X1) / 2
+		vMid := (c.Y0 + c.Y1) / 2
+		if hMid >= cell.X0 && hMid < cell.X1 && vMid >= cell.Y0 && vMid < cell.Y1 {
+			out = append(out, c)
+		}
+	}
+	return out
 }

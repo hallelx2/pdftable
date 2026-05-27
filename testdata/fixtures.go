@@ -52,6 +52,88 @@ ET
 `)
 }
 
+// TableRuled returns a minimal PDF whose content stream draws a
+// 2-column × 3-row ruled table containing predictable text. The
+// table is positioned in user space so the cells are easy to reason
+// about: each cell is 100×30 PDF points, the top-left cell sits at
+// (100, 700), and the grid extends down to (300, 610).
+//
+// The grid is drawn by four horizontal rules (at Y = 610, 640, 670,
+// 700) and three vertical rules (at X = 100, 200, 300). Cell content
+// is placed near the top-left of each cell using `Td` offsets:
+//
+//	row 0:  Name       Age      <- header
+//	row 1:  Alice      30
+//	row 2:  Bob        25
+//
+// Coordinates use PDF user space (Y growing UP), so row 0 is the
+// VISUALLY TOP row. The fixture is intentionally simple — no
+// kerning, no rotated text, no shaded backgrounds — so the
+// expected output is uncontroversial. We use Helvetica from the
+// standard 14 so no font program needs to be embedded.
+func TableRuled() []byte {
+	// Lay out the seven ruling lines (4 horizontal, 3 vertical).
+	// Each line uses a separate moveto/lineto/stroke triple. We
+	// could collapse them into one painting operation but separate
+	// `S` calls produce cleaner per-line objects in the parser's
+	// output, which keeps the test's "we have N lines" assertions
+	// straightforward.
+	//
+	// Horizontal rules:  Y = 610 / 640 / 670 / 700, X from 100 to 300.
+	// Vertical rules:    X = 100 / 200 / 300, Y from 610 to 700.
+	const grid = `1 w
+% Horizontal rules.
+100 610 m
+300 610 l
+S
+100 640 m
+300 640 l
+S
+100 670 m
+300 670 l
+S
+100 700 m
+300 700 l
+S
+% Vertical rules.
+100 610 m
+100 700 l
+S
+200 610 m
+200 700 l
+S
+300 610 m
+300 700 l
+S
+`
+	// Text in each cell. Y values target a few points below the
+	// top of the cell so the glyph baseline sits within the cell
+	// bbox even after Helvetica's descender drops below the
+	// baseline. Cell top is at Y = top of cell; we use Td to move
+	// to (x_offset, top - 22) where 22 leaves room for the cap
+	// height of 10pt Helvetica.
+	const text = `BT
+/F1 10 Tf
+% Row 0 (header): Y top = 700, baseline ≈ 678.
+110 678 Td
+(Name) Tj
+100 0 Td
+(Age) Tj
+% Row 1: Y top = 670, baseline ≈ 648. Move back to col 0 then down.
+-100 -30 Td
+(Alice) Tj
+100 0 Td
+(30) Tj
+% Row 2: Y top = 640, baseline ≈ 618.
+-100 -30 Td
+(Bob) Tj
+100 0 Td
+(25) Tj
+ET
+`
+	return BuildSinglePage(grid + text)
+}
+
 // Rules returns a minimal PDF whose content stream draws four lines
 // (two horizontal, two vertical) and one rectangle. We use simple
 // coordinates: a 100x100 box with one stroked diagonal line and one

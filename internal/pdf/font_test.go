@@ -5,26 +5,70 @@ package pdf
 
 import "testing"
 
-// TestEncodingByName checks that the four standard encodings produce
-// the correct printable-ASCII mapping (identity over 0x20..0x7e) and
-// that WinAnsi adds the smart-quote / dash / euro slots.
+// TestEncodingByName checks that the four base PDF encodings produce
+// the correct printable-ASCII mapping and the encoding-specific slots
+// outside that range.
+//
+// Important: identity over 0x20..0x7e holds for WinAnsi, MacRoman, and
+// PDFDoc, but NOT for StandardEncoding — per PDF Reference 1.7
+// Appendix D.2, StandardEncoding maps 0x27 to "quoteright" (U+2019)
+// and 0x60 to "quoteleft" (U+2018), not ASCII apostrophe/backtick.
+// This is the bug the v0.1.1 fix corrects (the previous table was
+// ASCII-identity over the printable range and silently dropped curly
+// quotes / dashes / ligatures on real PDFs).
 func TestEncodingByName(t *testing.T) {
-	for _, name := range []string{"StandardEncoding", "WinAnsiEncoding", "MacRomanEncoding", "PDFDocEncoding"} {
+	for _, name := range []string{"WinAnsiEncoding", "MacRomanEncoding", "PDFDocEncoding"} {
 		tab := EncodingByName(name)
-		// Identity over printable ASCII.
 		for c := byte(0x20); c < 0x7f; c++ {
 			if tab[c] != string(rune(c)) {
 				t.Errorf("%s[0x%02x] = %q, want %q", name, c, tab[c], string(rune(c)))
 			}
 		}
 	}
-	// WinAnsi-specific.
+	// StandardEncoding: identity except the typographic-quote slots.
+	std := EncodingByName("StandardEncoding")
+	for c := byte(0x20); c < 0x7f; c++ {
+		if c == 0x27 || c == 0x60 {
+			continue
+		}
+		if std[c] != string(rune(c)) {
+			t.Errorf("StandardEncoding[0x%02x] = %q, want %q", c, std[c], string(rune(c)))
+		}
+	}
+	if std[0x27] != "’" {
+		t.Errorf("StandardEncoding[0x27] = %q, want quoteright (’)", std[0x27])
+	}
+	if std[0x60] != "‘" {
+		t.Errorf("StandardEncoding[0x60] = %q, want quoteleft (‘)", std[0x60])
+	}
+	// WinAnsi-specific high-byte slots.
 	wa := EncodingByName("WinAnsiEncoding")
 	if wa[0x80] != "€" {
 		t.Errorf("WinAnsi[0x80] = %q, want €", wa[0x80])
 	}
 	if wa[0x96] != "–" {
 		t.Errorf("WinAnsi[0x96] = %q, want en-dash", wa[0x96])
+	}
+	if wa[0x97] != "—" {
+		t.Errorf("WinAnsi[0x97] = %q, want em-dash", wa[0x97])
+	}
+	if wa[0x91] != "‘" {
+		t.Errorf("WinAnsi[0x91] = %q, want quoteleft (‘)", wa[0x91])
+	}
+	if wa[0x92] != "’" {
+		t.Errorf("WinAnsi[0x92] = %q, want quoteright (’)", wa[0x92])
+	}
+	if wa[0x93] != "“" {
+		t.Errorf("WinAnsi[0x93] = %q, want quotedblleft (“)", wa[0x93])
+	}
+	if wa[0x94] != "”" {
+		t.Errorf("WinAnsi[0x94] = %q, want quotedblright (”)", wa[0x94])
+	}
+	if wa[0x95] != "•" {
+		t.Errorf("WinAnsi[0x95] = %q, want bullet (•)", wa[0x95])
+	}
+	if wa[0x83] != "ƒ" {
+		t.Errorf("WinAnsi[0x83] = %q, want florin (ƒ)", wa[0x83])
 	}
 }
 
@@ -59,7 +103,24 @@ func TestAdobeGlyphRecognisers(t *testing.T) {
 	}{
 		{"A", "A"},
 		{"comma", ","},
-		{"fi", "fi"},
+		// "fi" is the AGL ligature glyph (U+FB01), NOT the two-letter
+		// string "f"+"i". This is what pdfminer/pdfplumber return; the
+		// pre-v0.1.1 table missed this and returned "" (then fell back
+		// to a (cid:NNN) placeholder).
+		{"fi", "ﬁ"},
+		{"fl", "ﬂ"},
+		{"quoteleft", "‘"},
+		{"quoteright", "’"},
+		{"quotedblleft", "“"},
+		{"quotedblright", "”"},
+		{"endash", "–"},
+		{"emdash", "—"},
+		{"bullet", "•"},
+		{"florin", "ƒ"},
+		// Compound name (AGL §2): "f_i" decomposes to its parts.
+		{"f_i", "fi"},
+		// Variant suffix is stripped (AGL §2): "A.alt" → "A".
+		{"A.alt", "A"},
 		{"uni0041", "A"},
 		{"uni004100420043", "ABC"},
 		{"u0041", "A"},

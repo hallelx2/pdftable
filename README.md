@@ -19,10 +19,11 @@ heuristics on. This is that.
 
 ## Status
 
-`v0.2.0` — line-strategy table finding. `Page.FindTables` and
-`Page.ExtractTables` ship with this release covering the `lines` and
-`lines_strict` strategies (PDFs with ruled tables). `text` and
-`explicit` strategies return `ErrUnsupported` and land in v0.3.0.
+`v0.3.0` — full pdfplumber parity for table-finding strategies. All four
+canonical strategies are implemented: `lines`, `lines_strict`, `text`,
+and `explicit`. Mix and match per-axis (e.g. `vertical="text"` +
+`horizontal="lines"`) works as expected. Also ships the `pdftable`
+CLI for extracting text and tables without writing Go.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/hallelx2/pdftable.svg)](https://pkg.go.dev/github.com/hallelx2/pdftable)
 [![CI](https://github.com/hallelx2/pdftable/actions/workflows/test.yml/badge.svg)](https://github.com/hallelx2/pdftable/actions/workflows/test.yml)
@@ -31,7 +32,7 @@ heuristics on. This is that.
 ## Install
 
 ```sh
-go get github.com/hallelx2/pdftable@v0.2.0
+go get github.com/hallelx2/pdftable@v0.3.0
 ```
 
 Requires Go 1.25+ (uses the standard-library `iter` package for the `Pages()` range-over-func iterator, and pdfcpu v0.12+).
@@ -113,7 +114,7 @@ type Page interface {
     ExtractText(opts TextOpts) (string, error)
     ExtractTextSimple(xTolerance, yTolerance float64) (string, error)
 
-    // New in v0.2.0: line-strategy table finding.
+    // Table finding: lines + lines_strict (v0.2.0); text + explicit (v0.3.0).
     FindTables(settings TableSettings) ([]TableFinder, error)
     ExtractTables(settings TableSettings) ([]*Table, error)
 }
@@ -211,12 +212,12 @@ laid, _ := page.ExtractText(opts)
 fmt.Println(laid)
 ```
 
-## Tables (lines strategy)
+## Tables
 
 `Page.ExtractTables` is the table-detection entry point. It runs the
 edges → intersections → cells → tables pipeline (a direct port of
 pdfplumber's `TableFinder`) and returns one `*Table` per detected
-ruled table, with cell text already extracted.
+table, with cell text already extracted.
 
 ```go
 doc, _ := pdftable.OpenFile("invoice.pdf")
@@ -238,9 +239,11 @@ for ti, t := range tables {
 
 `TableSettings` defaults match pdfplumber's
 (`snap_tolerance=3`, `join_tolerance=3`, `edge_min_length=3`,
-`intersection_tolerance=3`, `text_tolerance=3`). Override any field
-on the value returned from `DefaultTableSettings()` to tighten or
-loosen the heuristics. The two implemented strategies are:
+`intersection_tolerance=3`, `text_tolerance=3`, `min_words_vertical=3`,
+`min_words_horizontal=1`). Override any field on the value returned
+from `DefaultTableSettings()` to tighten or loosen the heuristics.
+
+The four implemented strategies (one per axis, chosen independently):
 
 - `StrategyLines` — edges come from drawn `Line` segments, `Rect`
   outlines (all four sides), and axis-aligned `Curve` segments.
@@ -248,12 +251,16 @@ loosen the heuristics. The two implemented strategies are:
 - `StrategyLinesStrict` — only drawn `Line` segments are used. Use
   this when your PDF draws cell BACKGROUNDS as filled rectangles
   that you do NOT want treated as row boundaries.
+- `StrategyText` — edges inferred from word alignment. Vertical
+  edges come from clusters of words sharing X0 / X1 / centre;
+  horizontal edges from clusters sharing top-Y. Tunable via
+  `MinWordsVertical` (default 3) and `MinWordsHorizontal` (default 1).
+- `StrategyExplicit` — caller-supplied edges via
+  `ExplicitVerticalLines` / `ExplicitHorizontalLines`. Required when
+  table boundaries are known from layout analysis or manual
+  annotation.
 
-`StrategyText` (word-alignment-based) and `StrategyExplicit`
-(caller-supplied edges) return `ErrUnsupported` in v0.2.0 — they
-land in v0.3.0.
-
-### Side-by-side: pdfplumber → pdftable
+### Side-by-side: pdfplumber → pdftable (lines strategy)
 
 ```python
 # Python (pdfplumber)
@@ -287,14 +294,152 @@ for _, t := range tables {
 }
 ```
 
-The two outputs match cell-for-cell on ruled fixtures (see
-`testdata/golden/issue-466-example.*` for the parity test). Field
-naming differs in the obvious places: pdftable returns a slice of
-`*Table` instead of `Table` objects you have to call `.extract()`
-on; rows are `[]string` instead of `list[Optional[str]]` (missing
-cells produce `""` rather than `nil`); and table bboxes use
-`(X0, Y0, X1, Y1)` PDF user space rather than pdfplumber's
-image-space `(x0, top, x1, bottom)`.
+### Side-by-side: pdfplumber → pdftable (text strategy)
+
+```python
+# Python (pdfplumber) — borderless tables
+import pdfplumber
+
+with pdfplumber.open("10k-filing.pdf") as pdf:
+    page = pdf.pages[3]
+    for table in page.find_tables({"vertical_strategy": "text",
+                                    "horizontal_strategy": "text",
+                                    "min_words_vertical": 3}):
+        for row in table.extract():
+            print(row)
+```
+
+```go
+// Go (pdftable)
+doc, _ := pdftable.OpenFile("10k-filing.pdf")
+defer doc.Close()
+page, _ := doc.Page(4)
+
+settings := pdftable.DefaultTableSettings()
+settings.VerticalStrategy = pdftable.StrategyText
+settings.HorizontalStrategy = pdftable.StrategyText
+settings.MinWordsVertical = 3
+
+tables, _ := page.ExtractTables(settings)
+for _, t := range tables {
+    for _, row := range t.Rows {
+        fmt.Println(row)
+    }
+}
+```
+
+### Side-by-side: pdfplumber → pdftable (explicit strategy)
+
+```python
+# Python (pdfplumber) — caller-supplied edges
+import pdfplumber
+
+with pdfplumber.open("statement.pdf") as pdf:
+    page = pdf.pages[0]
+    table = page.find_tables({
+        "vertical_strategy": "explicit",
+        "horizontal_strategy": "explicit",
+        "explicit_vertical_lines":   [100, 200, 300, 400],
+        "explicit_horizontal_lines": [600, 650, 700, 720],
+    })[0]
+    for row in table.extract():
+        print(row)
+```
+
+```go
+// Go (pdftable)
+doc, _ := pdftable.OpenFile("statement.pdf")
+defer doc.Close()
+page, _ := doc.Page(1)
+
+settings := pdftable.DefaultTableSettings()
+settings.VerticalStrategy = pdftable.StrategyExplicit
+settings.HorizontalStrategy = pdftable.StrategyExplicit
+settings.ExplicitVerticalLines   = []float64{100, 200, 300, 400}
+settings.ExplicitHorizontalLines = []float64{600, 650, 700, 720}
+
+tables, _ := page.ExtractTables(settings)
+for _, row := range tables[0].Rows {
+    fmt.Println(row)
+}
+```
+
+### Mixed strategies
+
+Each axis picks its strategy independently. Combinations like
+`vertical=text` + `horizontal=lines` (common for tables with drawn
+row separators but borderless columns) work out of the box:
+
+```go
+settings := pdftable.DefaultTableSettings()
+settings.VerticalStrategy   = pdftable.StrategyText
+settings.HorizontalStrategy = pdftable.StrategyLines
+tables, _ := page.ExtractTables(settings)
+```
+
+The two outputs match cell-for-cell on the parity fixtures (see
+`testdata/golden/*.tables-text.expected.json` and
+`*.tables.expected.json` for the regression goldens). Field naming
+differs in the obvious places: pdftable returns a slice of `*Table`
+instead of `Table` objects you have to call `.extract()` on; rows are
+`[]string` instead of `list[Optional[str]]` (missing cells produce
+`""` rather than `nil`); and table bboxes use `(X0, Y0, X1, Y1)` PDF
+user space rather than pdfplumber's image-space
+`(x0, top, x1, bottom)`.
+
+## CLI
+
+`pdftable` ships a command-line interface that mirrors pdfplumber's
+CLI surface for the operations the library implements:
+
+```sh
+go install github.com/hallelx2/pdftable/cmd/pdftable@v0.3.0
+```
+
+Usage:
+
+```sh
+# Extract every table on every page as JSON.
+pdftable extract invoice.pdf --tables --format json
+
+# Borderless tables: use the text strategy.
+pdftable extract 10k.pdf --tables \
+    --vertical-strategy text --horizontal-strategy text \
+    --min-words-vertical 4
+
+# Extract text only (no table detection).
+pdftable extract report.pdf --text --format text
+
+# Subset of pages, pretty-printed JSON.
+pdftable extract report.pdf --tables --pages 1,3-5 --indent 2
+
+# Caller-supplied edges.
+pdftable extract statement.pdf --tables \
+    --vertical-strategy explicit --horizontal-strategy explicit \
+    --explicit-vertical-lines 100,200,300,400 \
+    --explicit-horizontal-lines 600,650,700,720
+```
+
+Flags:
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--pages` | all | Pages: `1,3-5` syntax. |
+| `--tables` | off | Output detected tables. |
+| `--text` | off | Output extracted text. |
+| `--format` | `json` | `json` \| `text`. |
+| `--vertical-strategy` | `lines` | `lines` \| `lines_strict` \| `text` \| `explicit`. |
+| `--horizontal-strategy` | `lines` | same set. |
+| `--snap-tolerance` | 3 | snap_tolerance (PDF pts). |
+| `--join-tolerance` | 3 | join_tolerance (PDF pts). |
+| `--edge-min-length` | 3 | drop merged edges shorter than this. |
+| `--intersection-tolerance` | 3 | slack on edge crossings. |
+| `--text-tolerance` | 3 | per-cell text-extraction tolerance. |
+| `--min-words-vertical` | 3 | text strategy column threshold. |
+| `--min-words-horizontal` | 1 | text strategy row threshold. |
+| `--explicit-vertical-lines` | (none) | comma list of X coords. |
+| `--explicit-horizontal-lines` | (none) | comma list of Y coords. |
+| `--indent` | 0 | JSON indent (0 = compact). |
 
 ## Side-by-side comparison with pdfplumber
 
@@ -391,9 +536,13 @@ pdftable/
 ├── text.go            // Word + ExtractText + ExtractTextSimple (v0.1.0)
 ├── table.go           // TableStrategy / TableSettings / Table types (v0.2.0)
 ├── finder.go          // Cells-from-edges algorithm (v0.2.0)
+├── finder_text.go     // Text + explicit edge derivation (v0.3.0)
 ├── clustering.go      // 1-D clusterObjects, groupObjectsByAttr, dedupeChars
 ├── geometry.go        // BBox helpers: Union, Intersect, Contains, Snap
 ├── errors.go          // Sentinel errors
+├── cmd/
+│   └── pdftable/      // Command-line interface (v0.3.0)
+│       └── main.go
 └── internal/
     ├── layout/
     │   └── lines.go   // Edge type + snap/join/filter pipeline (v0.2.0)
@@ -429,15 +578,17 @@ stdlib-only.
 - `v0.0.x` — content-stream primitives.
 - `v0.1.x` — text extraction: `Page.ExtractText`, `Page.Words`,
   `Page.ExtractTextSimple`.
-- `v0.2.x` — table finding via ruling lines (this release):
-  `Page.FindTables` / `Page.ExtractTables` covering the `lines` and
-  `lines_strict` strategies.
-- `v0.3.x` — remaining table strategies: `text` (word-alignment
-  edges) and `explicit` (caller-supplied edges). Bundle the
-  standard-14 AFM metrics so word bboxes (and therefore cell text)
-  match pdfplumber to within 1 PDF point on standard fonts.
-- `v0.4.x` — performance pass: parser benchmarking against pdfminer.six
-  and pdfplumber on a representative document corpus.
+- `v0.2.x` — table finding via ruling lines: `Page.FindTables` /
+  `Page.ExtractTables` covering the `lines` and `lines_strict`
+  strategies.
+- `v0.3.x` — remaining table strategies and CLI (this release):
+  `text` (word-alignment edges), `explicit` (caller-supplied edges),
+  and a `pdftable` CLI mirroring pdfplumber's surface.
+- `v0.4.x` — bundle the standard-14 AFM metrics so word bboxes (and
+  therefore cell text) match pdfplumber to within 1 PDF point on
+  standard fonts.
+- `v0.5.x` — performance pass: parser benchmarking against
+  pdfminer.six and pdfplumber on a representative document corpus.
 
 ## License
 

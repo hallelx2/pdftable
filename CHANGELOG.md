@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-05-29
+
+Performance fix for the cell-finding stage. The v0.3.0 public API
+surface is unchanged; v0.3.1 only adds two optional `TableSettings`
+safety-cap fields (both default to "unset", so existing callers are
+unaffected) and makes `FindTables` / `ExtractTables` dramatically
+faster on densely-ruled pages.
+
+### Performance
+
+- perf: grid-indexed cell finding — `intersectionsToCells` goes from
+  O(n²/n³) to O(cells). Intersections lie on a lattice (unique X
+  positions × unique Y positions); the finder now indexes points into
+  that grid so each anchor locates its `below` / `right` candidates and
+  the closing corner in O(1) instead of rescanning the entire
+  intersection suffix. Dense financial pages (a fine ruling grid with
+  hundreds of rulings per axis → tens of thousands of intersections)
+  that previously hung for minutes now finish in milliseconds. On a
+  synthetic 200×200 lattice (40,401 intersections, 40,000 cells) the
+  cell finder drops from ~78 s to a few ms. The cell-selection order
+  (nearest-first outward walk, below-outer / right-inner,
+  first-close-wins, one cell per anchor) is preserved byte-for-byte, so
+  the emitted cell set is identical — the golden fixtures
+  (`issue-466-example`, `table-3x4-borderless`) produce the same tables
+  as before.
+- perf: `edgesToIntersections` replaced its `V×H` pairwise scan with a
+  sweep — horizontal edges are sorted by Y and each vertical edge only
+  tests the band of horizontals whose Y lies within its span (located by
+  binary search). The intersection-tolerance semantics are unchanged.
+
+### Added
+
+- `TableSettings.MaxEdgesPerAxis` (default 1000) and
+  `TableSettings.MaxIntersections` (default 50000): defense-in-depth
+  caps. If a page yields more than `MaxEdgesPerAxis` vertical OR
+  horizontal edges after merging, or more than `MaxIntersections` edge
+  crossings, table finding is skipped for that page (no tables returned)
+  and a warning is logged. A real table never has this many rulings or
+  crossings on one axis; the caps bound the work even if some future
+  input defeats the grid optimization. Both treat zero as "unset"
+  (filled with the default) and a negative value as "disabled".
+- `finder_bench_test.go`: `BenchmarkIntersectionsToCellsDenseGrid` and
+  `BenchmarkEdgesToIntersectionsDenseGrid` over a 200×200 lattice, plus
+  `TestDenseGridTerminatesQuickly` — a hard wall-clock assertion
+  (< 2 s for 200×200) that fails CI if the quadratic behaviour ever
+  returns.
+
 ## [0.3.0] - 2026-05-27
 
 Phase 1.3.D + 1.3.E — text and explicit table-finding strategies, the
@@ -308,6 +355,7 @@ Initial release. Phase 1.3.A — content-stream primitives layer.
 - Type 3 fonts (their glyph procedures are themselves content streams).
 - Vertical writing mode.
 
+[0.3.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.3.1
 [0.3.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.2.0
 [0.1.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.1

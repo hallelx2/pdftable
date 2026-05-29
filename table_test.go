@@ -393,6 +393,101 @@ func TestExtractTables_RuledFixture(t *testing.T) {
 	}
 }
 
+// TestExtractTables_MaxEdgesPerAxisCapSuppressesTable asserts that a
+// MaxEdgesPerAxis set below the fixture's ruling count makes table
+// finding bail out (no tables, no error). The ruled fixture has more
+// than one ruling on each axis, so a cap of 1 trips the guard.
+func TestExtractTables_MaxEdgesPerAxisCapSuppressesTable(t *testing.T) {
+	doc, err := OpenBytes(testdata.TableRuled())
+	if err != nil {
+		t.Fatalf("OpenBytes: %v", err)
+	}
+	defer doc.Close()
+	p, _ := doc.Page(1)
+
+	// Sanity: with the default cap the fixture yields exactly one table.
+	if tables, err := p.ExtractTables(DefaultTableSettings()); err != nil {
+		t.Fatalf("baseline ExtractTables: %v", err)
+	} else if len(tables) != 1 {
+		t.Fatalf("baseline: got %d tables, want 1", len(tables))
+	}
+
+	settings := DefaultTableSettings()
+	settings.MaxEdgesPerAxis = 1
+	tables, err := p.ExtractTables(settings)
+	if err != nil {
+		t.Fatalf("ExtractTables with cap: %v", err)
+	}
+	if len(tables) != 0 {
+		t.Errorf("with MaxEdgesPerAxis=1: got %d tables, want 0 (cap should suppress)", len(tables))
+	}
+}
+
+// TestExtractTables_MaxIntersectionsCapSuppressesTable asserts the
+// intersection-stage cap likewise bails out when set below the
+// fixture's crossing count.
+func TestExtractTables_MaxIntersectionsCapSuppressesTable(t *testing.T) {
+	doc, err := OpenBytes(testdata.TableRuled())
+	if err != nil {
+		t.Fatalf("OpenBytes: %v", err)
+	}
+	defer doc.Close()
+	p, _ := doc.Page(1)
+
+	settings := DefaultTableSettings()
+	settings.MaxIntersections = 1
+	tables, err := p.ExtractTables(settings)
+	if err != nil {
+		t.Fatalf("ExtractTables with cap: %v", err)
+	}
+	if len(tables) != 0 {
+		t.Errorf("with MaxIntersections=1: got %d tables, want 0 (cap should suppress)", len(tables))
+	}
+}
+
+// TestExtractTables_NegativeCapDisables asserts a negative cap disables
+// the guard entirely (the fixture's one table still comes through even
+// though the cap field is set).
+func TestExtractTables_NegativeCapDisables(t *testing.T) {
+	doc, err := OpenBytes(testdata.TableRuled())
+	if err != nil {
+		t.Fatalf("OpenBytes: %v", err)
+	}
+	defer doc.Close()
+	p, _ := doc.Page(1)
+
+	settings := DefaultTableSettings()
+	settings.MaxEdgesPerAxis = -1
+	settings.MaxIntersections = -1
+	tables, err := p.ExtractTables(settings)
+	if err != nil {
+		t.Fatalf("ExtractTables: %v", err)
+	}
+	if len(tables) != 1 {
+		t.Errorf("with caps disabled: got %d tables, want 1", len(tables))
+	}
+}
+
+// TestApplyDefaults_FillsSafetyCaps asserts the new safety-cap fields
+// get their pdftable defaults when left zero, matching the
+// zero-value-gets-defaults convention of the other TableSettings
+// fields.
+func TestApplyDefaults_FillsSafetyCaps(t *testing.T) {
+	s := TableSettings{}.applyDefaults()
+	if s.MaxEdgesPerAxis != 1000 {
+		t.Errorf("MaxEdgesPerAxis: got %d, want 1000", s.MaxEdgesPerAxis)
+	}
+	if s.MaxIntersections != 50000 {
+		t.Errorf("MaxIntersections: got %d, want 50000", s.MaxIntersections)
+	}
+	// A negative value must survive applyDefaults (it means "disabled").
+	s2 := TableSettings{MaxEdgesPerAxis: -1, MaxIntersections: -1}.applyDefaults()
+	if s2.MaxEdgesPerAxis != -1 || s2.MaxIntersections != -1 {
+		t.Errorf("negative caps overwritten: got %d / %d, want -1 / -1",
+			s2.MaxEdgesPerAxis, s2.MaxIntersections)
+	}
+}
+
 // TestExtractTables_UnknownStrategyReturnsErrUnsupported asserts the
 // public API surfaces ErrUnsupported when callers pass an unrecognised
 // strategy string. All four standard strategies are implemented as of

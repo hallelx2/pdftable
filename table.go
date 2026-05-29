@@ -137,6 +137,32 @@ type TableSettings struct {
 	// returns an error.
 	ExplicitVerticalLines   []float64
 	ExplicitHorizontalLines []float64
+
+	// MaxEdgesPerAxis is a defense-in-depth cap on the number of merged
+	// rulings the table finder will accept on a single axis. If a page
+	// yields more than this many vertical OR horizontal edges after
+	// merging, table finding is skipped for that page (FindTables /
+	// ExtractTables return no tables) and a warning is logged. A real
+	// table never has this many distinct rulings on one axis; exceeding
+	// it means the page is pathological (e.g. a dense vector drawing
+	// misread as a grid), and processing it would only burn CPU. The
+	// grid-indexed cell finder is fast enough that this cap should
+	// essentially never trigger on legitimate input.
+	//
+	// Default: 1000. A negative value disables the cap; zero is treated
+	// as "unset" and filled with the default (matching every other
+	// field in this struct).
+	MaxEdgesPerAxis int
+
+	// MaxIntersections is the same defense-in-depth idea one stage
+	// later: if the edge crossings exceed this count, table finding is
+	// skipped for the page with a logged warning. This bounds the work
+	// even in the unlikely event that a future input defeats the grid
+	// optimization in the cell finder.
+	//
+	// Default: 50000. A negative value disables the cap; zero is treated
+	// as "unset" and filled with the default.
+	MaxIntersections int
 }
 
 // DefaultTableSettings returns settings with the pdfplumber default
@@ -170,6 +196,8 @@ func DefaultTableSettings() TableSettings {
 		TextTolerance:          3,
 		MinWordsVertical:       3,
 		MinWordsHorizontal:     1,
+		MaxEdgesPerAxis:        1000,
+		MaxIntersections:       50000,
 	}
 }
 
@@ -207,6 +235,12 @@ func (s TableSettings) applyDefaults() TableSettings {
 	}
 	if s.MinWordsHorizontal == 0 {
 		s.MinWordsHorizontal = 1
+	}
+	if s.MaxEdgesPerAxis == 0 {
+		s.MaxEdgesPerAxis = 1000
+	}
+	if s.MaxIntersections == 0 {
+		s.MaxIntersections = 50000
 	}
 	return s
 }

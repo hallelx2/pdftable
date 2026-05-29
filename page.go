@@ -5,6 +5,7 @@ package pdftable
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/hallelx2/pdftable/internal/layout"
@@ -550,7 +551,37 @@ func (p *page) FindTables(settings TableSettings) ([]TableFinder, error) {
 		return nil, nil
 	}
 
+	// Safety cap (defense in depth): a real table never has thousands
+	// of distinct rulings on one axis. If the merged edge count blows
+	// past MaxEdgesPerAxis the page is pathological (e.g. a dense vector
+	// illustration misread as a grid); skip it rather than feed the
+	// intersection scan an input that can only waste CPU.
+	if s.MaxEdgesPerAxis > 0 {
+		var nV, nH int
+		for _, e := range edges {
+			if e.Orientation == layout.Vertical {
+				nV++
+			} else {
+				nH++
+			}
+		}
+		if nV > s.MaxEdgesPerAxis || nH > s.MaxEdgesPerAxis {
+			log.Printf("pdftable: skipping table finding on page %d: %d vertical / %d horizontal edges exceed MaxEdgesPerAxis=%d (page is not a real table)",
+				p.number, nV, nH, s.MaxEdgesPerAxis)
+			return nil, nil
+		}
+	}
+
 	intersections := edgesToIntersections(edges, s.IntersectionTolerance, s.IntersectionTolerance)
+
+	// Second safety cap at the intersection stage — bounds the work
+	// even if some future input defeats the grid-indexed cell finder.
+	if s.MaxIntersections > 0 && len(intersections) > s.MaxIntersections {
+		log.Printf("pdftable: skipping table finding on page %d: %d intersections exceed MaxIntersections=%d",
+			p.number, len(intersections), s.MaxIntersections)
+		return nil, nil
+	}
+
 	cells := intersectionsToCells(intersections)
 	groups := cellsToTables(cells)
 

@@ -171,8 +171,10 @@ func edgesToIntersections(edges []layout.Edge, xTol, yTol float64) []Intersectio
 
 	// Sort: pdfplumber sorts v by (x0, top) and h by (top, x0). In
 	// PDF user space "top" means LARGER Y. We sort v by (X0 asc,
-	// Y0 asc) and h by (Y0 desc, X0 asc) so iteration order matches
-	// the visual top-to-bottom traversal pdfplumber uses.
+	// Y0 asc) and h by (Y0 asc, X0 asc). Sorting h by Y0 ascending is
+	// what lets the sweep below window in on the band of horizontal
+	// edges a given vertical edge can possibly cross, via binary
+	// search, instead of testing every pair.
 	sort.SliceStable(vEdges, func(i, j int) bool {
 		if vEdges[i].X0 != vEdges[j].X0 {
 			return vEdges[i].X0 < vEdges[j].X0
@@ -181,10 +183,18 @@ func edgesToIntersections(edges []layout.Edge, xTol, yTol float64) []Intersectio
 	})
 	sort.SliceStable(hEdges, func(i, j int) bool {
 		if hEdges[i].Y0 != hEdges[j].Y0 {
-			return hEdges[i].Y0 > hEdges[j].Y0
+			return hEdges[i].Y0 < hEdges[j].Y0
 		}
 		return hEdges[i].X0 < hEdges[j].X0
 	})
+
+	// hYs is the ascending Y0 of every horizontal edge, parallel to
+	// hEdges, so sort.Search can locate the band [v.Y0-yTol, v.Y1+yTol]
+	// without recomputing.
+	hYs := make([]float64, len(hEdges))
+	for i, h := range hEdges {
+		hYs[i] = h.Y0
+	}
 
 	// Key on (X, Y) using two floats — float64 comparisons are
 	// exact-equality after snap_edges has unified positions onto
@@ -195,34 +205,29 @@ func edgesToIntersections(edges []layout.Edge, xTol, yTol float64) []Intersectio
 	indexByKey := make(map[key]int)
 	var out []Intersection
 
+	// Sweep: for each vertical edge, only the horizontal edges whose Y
+	// lies in [v.Y0 - yTol, v.Y1 + yTol] can possibly cross it. Because
+	// hEdges is sorted by Y0 ascending, that window is a contiguous
+	// slice located by binary search — so a dense page no longer pays
+	// the full V x H cross product. Within the window we still apply
+	// pdfplumber's exact predicate (the Y band test is already
+	// satisfied by construction; the X-cover test is checked per edge).
 	for _, v := range vEdges {
-		for _, h := range hEdges {
-			// pdfplumber's test (translated from image-space "top" /
-			// "bottom" to PDF user-space Y0 / Y1):
+		lo := sort.SearchFloat64s(hYs, v.Y0-yTol)
+		// Upper bound: first index whose Y0 exceeds v.Y1 + yTol.
+		hi := sort.Search(len(hYs), func(i int) bool {
+			return hYs[i] > v.Y1+yTol
+		})
+		for hIdx := lo; hIdx < hi; hIdx++ {
+			h := hEdges[hIdx]
+			// The [lo, hi) window already enforces pdfplumber's two Y
+			// conditions exactly:
 			//
-			//   image space: v.top <= h.top + yTol  AND
-			//                v.bottom >= h.top - yTol
+			//   v.Y0 <= h.Y0 + yTol  AND  v.Y1 >= h.Y0 - yTol
 			//
-			// In image space "top" is the smaller Y (visually higher)
-			// and "bottom" is the larger Y. In PDF user space the
-			// orientation flips: "visually higher" means LARGER Y.
-			//
-			// The two conditions in image space say: h.top is between
-			// v.top and v.bottom (i.e. v's Y range covers h's Y). In
-			// PDF user space the same constraint is:
-			//
-			//   v.Y0 <= h.Y0 + yTol   AND   v.Y1 >= h.Y0 - yTol
-			//
-			// — the horizontal edge's Y (which equals h.Y0 == h.Y1)
-			// must lie within the vertical edge's [Y0, Y1] span,
-			// with yTol slack on both ends.
-			if v.Y0 > h.Y0+yTol {
-				continue
-			}
-			if v.Y1 < h.Y0-yTol {
-				continue
-			}
-			// h must cover v.X0 with xTol slack.
+			// (lo is the first h with h.Y0 >= v.Y0 - yTol; hi is the
+			// first h with h.Y0 > v.Y1 + yTol.) Only the X-cover test
+			// remains — h must span v.X0 with xTol slack on each side:
 			if v.X0 < h.X0-xTol {
 				continue
 			}
@@ -270,34 +275,42 @@ func edgeKey(e layout.Edge) edgeSharedKey {
 	return edgeSharedKey{x0: e.X0, y0: e.Y0, x1: e.X1, y1: e.Y1, o: e.Orientation}
 }
 
-// edgeConnects reports whether p1 and p2 share an edge — i.e. lie on
-// the same merged ruler. This is the predicate pdfplumber uses to
-// distinguish "two points on the same line" from "two points on
-// parallel lines that happen to align".
-//
-// p1 and p2 must share an axis (same X for vertical-shared, same Y
-// for horizontal-shared); the function returns false otherwise.
-func edgeConnects(p1, p2 Intersection) bool {
-	if p1.X == p2.X {
-		// Look for a vertical edge present in both intersections'
-		// V slices.
-		seen := make(map[edgeSharedKey]struct{}, len(p1.V))
-		for _, e := range p1.V {
-			seen[edgeKey(e)] = struct{}{}
-		}
-		for _, e := range p2.V {
-			if _, ok := seen[edgeKey(e)]; ok {
-				return true
+// dedupEdgeKeys turns an edge slice into a deduplicated slice of
+// edgeSharedKeys. The cell finder calls edge_connects as a set
+// intersection; pre-deduping each intersection's edge list once means
+// the per-pair test (sharesKey) is a scan over a handful of unique
+// rulers rather than a re-derivation. Real intersections lie on only
+// one or two distinct rulers per axis, so these slices are tiny and a
+// linear dedup beats a map allocation.
+func dedupEdgeKeys(edges []layout.Edge) []edgeSharedKey {
+	if len(edges) == 0 {
+		return nil
+	}
+	out := make([]edgeSharedKey, 0, len(edges))
+	for _, e := range edges {
+		k := edgeKey(e)
+		dup := false
+		for _, existing := range out {
+			if existing == k {
+				dup = true
+				break
 			}
 		}
-	}
-	if p1.Y == p2.Y {
-		seen := make(map[edgeSharedKey]struct{}, len(p1.H))
-		for _, e := range p1.H {
-			seen[edgeKey(e)] = struct{}{}
+		if !dup {
+			out = append(out, k)
 		}
-		for _, e := range p2.H {
-			if _, ok := seen[edgeKey(e)]; ok {
+	}
+	return out
+}
+
+// sharesKey reports whether two deduplicated edge-key slices have any
+// element in common. Both slices hold at most a few entries (the
+// rulers passing through one intersection on one axis), so the nested
+// scan is effectively constant-time and allocation-free.
+func sharesKey(a, b []edgeSharedKey) bool {
+	for _, ka := range a {
+		for _, kb := range b {
+			if ka == kb {
 				return true
 			}
 		}
@@ -305,100 +318,325 @@ func edgeConnects(p1, p2 Intersection) bool {
 	return false
 }
 
+// edgeConnects reports whether p1 and p2 share an edge — i.e. lie on
+// the same merged ruler. This is the predicate pdfplumber uses to
+// distinguish "two points on the same line" from "two points on
+// parallel lines that happen to align".
+//
+// p1 and p2 must share an axis (same X for vertical-shared, same Y
+// for horizontal-shared); the function returns false otherwise.
+//
+// This is the convenience entry point used by tests and any caller
+// that has only the two Intersection values. The cell finder uses the
+// pre-computed edge-key form (sharesKey on gridNode slices) on its hot
+// path instead, so it never re-walks the raw edge slices per pair.
+func edgeConnects(p1, p2 Intersection) bool {
+	if p1.X == p2.X && sharesKey(dedupEdgeKeys(p1.V), dedupEdgeKeys(p2.V)) {
+		return true
+	}
+	if p1.Y == p2.Y && sharesKey(dedupEdgeKeys(p1.H), dedupEdgeKeys(p2.H)) {
+		return true
+	}
+	return false
+}
+
 // intersectionsToCells is the Go port of pdfplumber's
-// intersections_to_cells. Given a sorted-by-(Y desc, X asc) list of
-// intersections, return the smallest closed rectangle anchored at
-// each intersection — that's one cell.
+// intersections_to_cells. Given the intersection list, return the
+// smallest closed rectangle anchored at each intersection — that's
+// one cell.
 //
-// The algorithm at each point pt:
-//   - Find all `below` points (same X as pt, lower Y in user space).
-//   - Find all `right` points  (same Y as pt, larger X).
-//   - For every below_pt with which pt shares a vertical edge, and
-//     every right_pt with which pt shares a horizontal edge, check
-//     whether the diagonal corner (right_pt.X, below_pt.Y) is also an
-//     intersection AND shares the necessary edges to close the
-//     rectangle. If yes, that's the smallest cell — return it.
+// pdfplumber's algorithm, per anchor point pt:
+//   - `below` = all points sharing pt's X with a lower Y (visually
+//     below pt), nearest first.
+//   - `right` = all points sharing pt's Y with a larger X, nearest
+//     first.
+//   - For the nearest `below` point that shares a vertical edge with
+//     pt, scan `right` (nearest first) for a point that shares a
+//     horizontal edge with pt AND whose diagonal partner
+//     (right.X, below.Y) is an intersection that closes the rectangle
+//     (shares the bottom edge with `below` and the right edge with
+//     `right`). The first such rectangle is the cell; emit it and stop.
+//   - At most one cell is emitted per anchor point.
 //
-// "Smallest" comes from the sort order: `below` and `right` slices
-// preserve the sorted suffix of the intersections list, so the
-// nearest points are tried first.
+// The reference re-derives `below`/`right` by scanning the entire
+// remaining suffix for EVERY point — O(n) work per point, O(n^2)
+// overall, and O(n^3) once the inner below x right search is counted.
+// On a finely-ruled financial page (thousands of intersections) that
+// is the multi-minute hang this package was built to avoid.
+//
+// We exploit the fact that intersections lie on a lattice: a set of
+// unique X positions crossed by a set of unique Y positions. Indexing
+// the points into that grid makes `below`/`right` O(1)-to-locate
+// (they are simply the present cells in pt's column / row beyond pt)
+// and the corner an O(1) lookup, so the whole pass is O(number of
+// candidate cells) with small constants. The cell-SELECTION order is
+// kept byte-for-byte identical to the reference (nearest-first
+// outward walk, below-outer / right-inner, first-close-wins), so the
+// emitted cell set is unchanged — only the cost of finding it drops.
 func intersectionsToCells(intersections []Intersection) []BBox {
 	if len(intersections) == 0 {
 		return nil
 	}
 
-	// Index by (X, Y) for fast "is this corner an intersection" lookup.
-	type key struct {
-		x, y float64
-	}
-	idxByKey := make(map[key]int, len(intersections))
-	for i, p := range intersections {
-		idxByKey[key{x: p.X, y: p.Y}] = i
-	}
+	g := newIntersectionGrid(intersections)
 
-	// In user space the intersections list is sorted by Y descending
-	// (visually top first) then X ascending. "directly below pt"
-	// means same X with smaller Y; "directly right" means same Y
-	// with larger X. Both are in the SUFFIX of the sorted list,
-	// matching pdfplumber's "rest = points[i+1:]" walk.
-	var cells []BBox
-	for i, pt := range intersections {
-		if i == len(intersections)-1 {
-			break
-		}
-		rest := intersections[i+1:]
-
-		// below: same X, smaller Y (already true for the suffix
-		// because the list is Y-descending and X-ascending; same X
-		// entries that follow pt all have smaller Y).
-		var below []Intersection
-		var right []Intersection
-		for _, q := range rest {
-			if q.X == pt.X && q.Y < pt.Y {
-				below = append(below, q)
-			}
-			if q.Y == pt.Y && q.X > pt.X {
-				right = append(right, q)
-			}
-		}
-
-		found := false
-		for _, bp := range below {
-			if !edgeConnects(pt, bp) {
-				continue
-			}
-			for _, rp := range right {
-				if !edgeConnects(pt, rp) {
-					continue
-				}
-				cornerKey := key{x: rp.X, y: bp.Y}
-				cornerIdx, ok := idxByKey[cornerKey]
-				if !ok {
-					continue
-				}
-				corner := intersections[cornerIdx]
-				if !edgeConnects(corner, rp) {
-					continue
-				}
-				if !edgeConnects(corner, bp) {
-					continue
-				}
-				// Cell corners in PDF user space:
-				//   pt (top-left)        : (pt.X,  pt.Y)
-				//   rp (top-right)       : (rp.X,  pt.Y)
-				//   bp (bottom-left)     : (pt.X,  bp.Y)
-				//   corner (bottom-right): (rp.X,  bp.Y)
-				// Cell bbox: x0 = pt.X, x1 = rp.X, y0 = bp.Y, y1 = pt.Y.
-				cells = append(cells, NewBBox(pt.X, bp.Y, rp.X, pt.Y))
-				found = true
-				break
-			}
-			if found {
-				break
+	// Visit anchor points in the same order pdfplumber does — by
+	// sorted (X asc, Y asc-in-image-space) point key. The emitted cell
+	// SET is independent of visit order (one cell per anchor, fully
+	// determined by the anchor's own column/row), but we keep the
+	// append order matching the reference so any order-sensitive
+	// downstream consumer sees the same sequence. pdfplumber iterates
+	// `sorted(intersections.keys())`; that is X ascending then
+	// image-space top ascending, i.e. X ascending then user-space Y
+	// DESCENDING. We reproduce it by walking columns left-to-right and,
+	// within a column, rows top-to-bottom (Y descending).
+	cells := make([]BBox, 0, len(intersections))
+	for xi := 0; xi < len(g.xs); xi++ {
+		col := g.colRows[xi] // present row indices, ascending (Y ascending)
+		// Y descending → iterate the column's present rows from the
+		// top (largest Y = largest row index) down.
+		for ri := len(col) - 1; ri >= 0; ri-- {
+			yi := col[ri]
+			if c, ok := g.smallestCellAt(xi, yi); ok {
+				cells = append(cells, c)
 			}
 		}
 	}
 	return cells
+}
+
+// intersectionGrid is the lattice index over a set of intersections.
+// It holds the sorted unique X / Y coordinates, a presence index from
+// (column, row) to the intersection's cached edge-key slices, and the
+// per-column / per-row lists of present indices that drive the
+// nearest-first outward walk.
+type intersectionGrid struct {
+	xs []float64 // sorted unique X coordinates
+	ys []float64 // sorted unique Y coordinates (ascending)
+
+	// nodes holds one gridNode per intersection, in the order the
+	// intersections were indexed. Lookups go through dense/sparse below.
+	nodes []gridNode
+
+	// Presence index from packed (xi,yi) to nodes-index+1 (0 == absent).
+	// Two representations, picked by buildup based on lattice density:
+	//   - dense: a flat slice of length len(xs)*len(ys), used when that
+	//     product stays within a sane multiple of the intersection count
+	//     (the normal case — a real table is a near-full lattice).
+	//   - sparse: a map keyed on the packed position, used when the
+	//     bounding lattice would be far larger than the point count
+	//     (scattered points that aren't a real grid), so we never
+	//     allocate a giant matrix.
+	dense  []int32
+	sparse map[int64]int32
+	stride int // == len(ys); used to pack (xi,yi) -> xi*stride + yi
+
+	// colRows[xi] = sorted-ascending list of row indices present in
+	// column xi. rowCols[yi] = sorted-ascending list of column indices
+	// present in row yi. These let smallestCellAt walk only the points
+	// that actually exist, nearest-first.
+	colRows [][]int
+	rowCols [][]int
+}
+
+// gridNode caches the deduplicated vertical / horizontal edge keys of
+// one intersection so edge_connects checks are tiny slice scans, not
+// map allocations.
+type gridNode struct {
+	v []edgeSharedKey
+	h []edgeSharedKey
+}
+
+// denseGridLimit bounds the dense presence array: we only allocate the
+// flat len(xs)*len(ys) matrix when it stays at or below this many
+// entries. Beyond it (a sparse scatter that isn't a real grid) we fall
+// back to the map so memory stays O(intersections). 4 million int32 is
+// 16 MB — comfortably covers any legitimate ruled page (the dense
+// 200x200 benchmark grid is only 40,401 entries) while capping the
+// worst case.
+const denseGridLimit = 4 << 20
+
+// newIntersectionGrid snaps the intersections onto their lattice and
+// builds the lookup structures. Coordinate equality uses the same
+// exact-float comparison the rest of the finder relies on: snap_edges
+// has already unified positions onto cluster means upstream, so equal
+// coordinates are byte-equal here.
+func newIntersectionGrid(intersections []Intersection) *intersectionGrid {
+	xSet := make(map[float64]struct{}, len(intersections))
+	ySet := make(map[float64]struct{}, len(intersections))
+	for _, p := range intersections {
+		xSet[p.X] = struct{}{}
+		ySet[p.Y] = struct{}{}
+	}
+	xs := make([]float64, 0, len(xSet))
+	for x := range xSet {
+		xs = append(xs, x)
+	}
+	ys := make([]float64, 0, len(ySet))
+	for y := range ySet {
+		ys = append(ys, y)
+	}
+	sort.Float64s(xs)
+	sort.Float64s(ys)
+
+	xIndex := make(map[float64]int, len(xs))
+	for i, x := range xs {
+		xIndex[x] = i
+	}
+	yIndex := make(map[float64]int, len(ys))
+	for i, y := range ys {
+		yIndex[y] = i
+	}
+
+	g := &intersectionGrid{
+		xs:      xs,
+		ys:      ys,
+		nodes:   make([]gridNode, 0, len(intersections)),
+		stride:  len(ys),
+		colRows: make([][]int, len(xs)),
+		rowCols: make([][]int, len(ys)),
+	}
+
+	// Choose the presence representation. int64 math avoids overflow on
+	// the product for pathological lattices before we decide.
+	cells := int64(len(xs)) * int64(len(ys))
+	if cells <= denseGridLimit {
+		g.dense = make([]int32, cells)
+	} else {
+		g.sparse = make(map[int64]int32, len(intersections))
+	}
+
+	for _, p := range intersections {
+		xi := xIndex[p.X]
+		yi := yIndex[p.Y]
+		g.nodes = append(g.nodes, gridNode{
+			v: dedupEdgeKeys(p.V),
+			h: dedupEdgeKeys(p.H),
+		})
+		ref := int32(len(g.nodes)) // node index + 1
+		packed := int64(xi)*int64(g.stride) + int64(yi)
+		if g.dense != nil {
+			g.dense[packed] = ref
+		} else {
+			g.sparse[packed] = ref
+		}
+		g.colRows[xi] = append(g.colRows[xi], yi)
+		g.rowCols[yi] = append(g.rowCols[yi], xi)
+	}
+	// Each column's rows and each row's columns sorted ascending so the
+	// outward walk can go nearest-first.
+	for xi := range g.colRows {
+		sort.Ints(g.colRows[xi])
+	}
+	for yi := range g.rowCols {
+		sort.Ints(g.rowCols[yi])
+	}
+	return g
+}
+
+// node returns the cached edge slices at lattice position (xi, yi), or
+// nil if no intersection sits there.
+func (g *intersectionGrid) node(xi, yi int) *gridNode {
+	packed := int64(xi)*int64(g.stride) + int64(yi)
+	var ref int32
+	if g.dense != nil {
+		ref = g.dense[packed]
+	} else {
+		ref = g.sparse[packed]
+	}
+	if ref == 0 {
+		return nil
+	}
+	return &g.nodes[ref-1]
+}
+
+// smallestCellAt reproduces pdfplumber's find_smallest_cell for the
+// anchor at lattice position (xi, yi): the nearest connected point
+// below, paired with the nearest connected point to the right whose
+// diagonal partner closes the rectangle. Returns the cell bbox and
+// true, or false if the anchor opens no cell.
+//
+// The walk order is identical to the reference: `below` candidates are
+// tried from nearest to farthest (outer loop); for each, `right`
+// candidates are tried nearest to farthest (inner loop); the first
+// quadruple that forms a closed, edge-connected rectangle wins. The
+// only difference from the reference is HOW the candidate lists are
+// obtained — here they are the present nodes in the anchor's column /
+// row, located in O(1) via the grid index instead of by rescanning
+// the whole intersection suffix.
+func (g *intersectionGrid) smallestCellAt(xi, yi int) (BBox, bool) {
+	anchor := g.node(xi, yi)
+	if anchor == nil {
+		return BBox{}, false
+	}
+
+	// `right` candidates are the nodes in this row to the right of the
+	// anchor (larger X). rowCols holds column indices ascending, so the
+	// suffix after the anchor's own position is already nearest-first.
+	// We locate the anchor's slot once and reuse the suffix for every
+	// `below` candidate rather than rescanning from zero.
+	rowCols := g.rowCols[yi]
+	rStart := upperBoundInt(rowCols, xi) // first index whose column > xi
+	if rStart == len(rowCols) {
+		return BBox{}, false // nothing to the right → no cell can close
+	}
+	rightCols := rowCols[rStart:]
+
+	// `below` = nodes in this column with a smaller Y (visually below),
+	// nearest first. colRows holds row indices ascending, so the rows
+	// strictly below the anchor are the prefix before the anchor's own
+	// slot. Locate that slot in O(log n) and walk the prefix downward
+	// (nearest-below first) — we never touch the rows above the anchor.
+	//
+	// The loops then mirror pdfplumber exactly: nearest connecting
+	// `below` (outer), then nearest connecting `right` whose diagonal
+	// partner closes the rectangle (inner), first match wins. The inner
+	// scan breaks out the moment a cell closes, so on a regular grid the
+	// adjacent neighbours settle it in O(1) — only genuinely irregular
+	// lattices walk further, exactly as the reference does.
+	colRows := g.colRows[xi]
+	bStart := sort.SearchInts(colRows, yi) // anchor's own index (yi is present)
+	for bIdx := bStart - 1; bIdx >= 0; bIdx-- {
+		byi := colRows[bIdx]
+		bp := g.node(xi, byi)
+		// pt and bp share column (same X) → need a shared vertical edge.
+		if !sharesKey(anchor.v, bp.v) {
+			continue
+		}
+
+		for _, rxi := range rightCols {
+			rp := g.node(rxi, yi)
+			// pt and rp share row (same Y) → need a shared horizontal edge.
+			if !sharesKey(anchor.h, rp.h) {
+				continue
+			}
+			// Diagonal partner: bottom-right corner at (rxi, byi).
+			corner := g.node(rxi, byi)
+			if corner == nil {
+				continue
+			}
+			// corner & rp share column → vertical edge; corner & bp share
+			// row → horizontal edge.
+			if !sharesKey(corner.v, rp.v) {
+				continue
+			}
+			if !sharesKey(corner.h, bp.h) {
+				continue
+			}
+
+			// Cell bbox: x0 = anchor X, x1 = rp X, y0 = bp Y, y1 = anchor Y.
+			return NewBBox(g.xs[xi], g.ys[byi], g.xs[rxi], g.ys[yi]), true
+		}
+	}
+	return BBox{}, false
+}
+
+// upperBoundInt returns the index of the first element of the
+// ascending-sorted slice s that is strictly greater than v, or len(s)
+// if every element is <= v. Used to find the start of the "to the
+// right of the anchor" column suffix in O(log n).
+func upperBoundInt(s []int, v int) int {
+	return sort.Search(len(s), func(i int) bool { return s[i] > v })
 }
 
 // cellsToTables is the Go port of pdfplumber's cells_to_tables. Given

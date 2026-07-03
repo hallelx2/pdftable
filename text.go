@@ -99,6 +99,17 @@ type WordOpts struct {
 	// Default: 3.
 	XTolerance float64
 
+	// XToleranceRatio, when > 0, makes the horizontal word-gap tolerance
+	// SIZE-RELATIVE instead of a fixed number of points: the effective
+	// tolerance for a pair of glyphs becomes XToleranceRatio × the
+	// previous glyph's font size. This generalizes word splitting across
+	// documents and across font sizes WITHIN a document — the gap that
+	// separates words scales with type size, so a single absolute value
+	// (e.g. 3pt) over-merges small body text while a small value
+	// over-splits large headings. Mirrors pdfplumber's x_tolerance_ratio.
+	// When 0 (the WordExtractor default), the fixed XTolerance is used.
+	XToleranceRatio float64
+
 	// YTolerance is the maximum vertical jitter between chars that
 	// still get clustered onto the same line. Default: 3.
 	YTolerance float64
@@ -109,6 +120,17 @@ type WordOpts struct {
 	// Set to true to preserve them (e.g. for diff-style line
 	// reconstruction).
 	KeepBlankChars bool
+
+	// UseExplicitSpaces: when true, whitespace glyphs in the content
+	// stream are treated as authoritative word boundaries (the PDF is
+	// telling us exactly where words break) instead of being dropped and
+	// re-inferred from inter-glyph gaps. This is strictly more robust than
+	// pure gap heuristics for the many PDFs that DO emit real space glyphs
+	// — the size-relative gap check then only has to carry the PDFs that
+	// space via positioning. The spaces are used as separators only; they
+	// are never emitted into the word text. Off in the raw WordExtractor
+	// (pdfplumber parity); on in DefaultTextOpts.
+	UseExplicitSpaces bool
 
 	// UseTextFlow: when true, chars are processed in content-stream
 	// order rather than re-sorted by position. This is faster and
@@ -169,6 +191,17 @@ func DefaultWordOpts() WordOpts {
 // is not useful; call DefaultTextOpts() for sensible defaults.
 type TextOpts struct {
 	XTolerance float64
+
+	// XToleranceRatio makes the word-gap tolerance size-relative
+	// (XToleranceRatio × glyph size) instead of a fixed number of points.
+	// See WordOpts.XToleranceRatio. DefaultTextOpts enables it so text
+	// extraction is robust across mixed-size documents out of the box.
+	XToleranceRatio float64
+
+	// UseExplicitSpaces honours the PDF's own whitespace glyphs as word
+	// boundaries. See WordOpts.UseExplicitSpaces. Enabled by DefaultTextOpts.
+	UseExplicitSpaces bool
+
 	YTolerance float64
 
 	// Layout: when true, the output preserves the page's spatial
@@ -210,13 +243,18 @@ type TextOpts struct {
 // DefaultTextOpts returns pdfplumber-matching defaults.
 func DefaultTextOpts() TextOpts {
 	return TextOpts{
-		XTolerance:    3,
-		YTolerance:    3,
-		XDensity:      7.25,
-		YDensity:      13,
-		HorizontalLTR: true,
-		VerticalTTB:   true,
-		Expand:        true,
+		XTolerance: 3,
+		// Size-relative word gap: 0.15 × glyph size. At 10pt body that's
+		// 1.5pt (splits tight typography correctly); at 24pt headings that
+		// scales to 3.6pt (won't over-split). Generalizes across documents.
+		XToleranceRatio:   0.15,
+		YTolerance:        3,
+		XDensity:          7.25,
+		YDensity:          13,
+		HorizontalLTR:     true,
+		VerticalTTB:       true,
+		Expand:            true,
+		UseExplicitSpaces: true,
 	}
 }
 
@@ -287,7 +325,10 @@ func extractWordsFromChars(chars []Char, opts WordOpts) []Word {
 			if c.Text == "" {
 				continue
 			}
-			if isAllSpace(c.Text) {
+			// Retain whitespace glyphs when UseExplicitSpaces is set so
+			// mergeLineIntoWords can honour them as word boundaries; drop
+			// them otherwise (pure gap-based grouping).
+			if isAllSpace(c.Text) && !opts.UseExplicitSpaces {
 				continue
 			}
 			out = append(out, c)
@@ -453,10 +494,11 @@ func mergeLineIntoWords(line []Char, dir string, opts WordOpts) []Word {
 
 	for _, c := range line {
 		text := c.Text
-		// Whitespace breaks the word (we filtered earlier unless
-		// KeepBlankChars=true; if we're here with a space, the caller
-		// asked for explicit space chars and we honour the break).
-		if opts.KeepBlankChars && isAllSpace(text) {
+		// Whitespace breaks the word. A space glyph only reaches this
+		// point when KeepBlankChars or UseExplicitSpaces kept it; either
+		// way it is an authoritative boundary. It is used as a separator
+		// only — never appended to the word text.
+		if isAllSpace(text) && (opts.KeepBlankChars || opts.UseExplicitSpaces) {
 			flush()
 			continue
 		}
@@ -553,6 +595,16 @@ func charBeginsNewWord(prev, curr Char, dir string, opts WordOpts) bool {
 		cy = curr.Y1
 		xTol = opts.XTolerance
 		yTol = opts.YTolerance
+	}
+
+	// Size-relative tolerance: the whitespace that separates words scales
+	// with font size, so a fixed absolute tolerance mis-splits documents
+	// that mix type sizes. When XToleranceRatio is set, derive the
+	// intraline tolerance from the previous glyph's size (pdfplumber's
+	// x_tolerance_ratio semantics), falling back to the absolute XTolerance
+	// when the size is unknown.
+	if opts.XToleranceRatio > 0 && prev.FontSize > 0 {
+		xTol = opts.XToleranceRatio * prev.FontSize
 	}
 
 	intraline := cx < ax || cx > bx+xTol
@@ -821,13 +873,15 @@ func extractTextWithLayout(chars []Char, pageWidth, pageHeight float64, opts Tex
 // by the word extractor.
 func textOptsToWordOpts(t TextOpts) WordOpts {
 	return WordOpts{
-		XTolerance:    nonZero(t.XTolerance, 3),
-		YTolerance:    nonZero(t.YTolerance, 3),
-		UseTextFlow:   t.UseTextFlow,
-		HorizontalLTR: t.HorizontalLTR,
-		VerticalTTB:   t.VerticalTTB,
-		ExtraAttrs:    t.ExtraAttrs,
-		Expand:        t.Expand,
+		XTolerance:        nonZero(t.XTolerance, 3),
+		XToleranceRatio:   t.XToleranceRatio,
+		YTolerance:        nonZero(t.YTolerance, 3),
+		UseTextFlow:       t.UseTextFlow,
+		HorizontalLTR:     t.HorizontalLTR,
+		VerticalTTB:       t.VerticalTTB,
+		ExtraAttrs:        t.ExtraAttrs,
+		Expand:            t.Expand,
+		UseExplicitSpaces: t.UseExplicitSpaces,
 	}
 }
 

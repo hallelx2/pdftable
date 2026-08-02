@@ -43,7 +43,7 @@ def main() -> int:
     for pdf, xml in pairs:
         gt = gt_relations(xml)
         out = subprocess.run(
-            [exe, "-strategy", "lines", pdf], capture_output=True, timeout=120
+            [exe, "-strategy", os.environ.get("DIAG_STRATEGY","lines"), pdf], capture_output=True, timeout=120
         ).stdout
         tables = json.loads(out or b"[]")
         detected_tables_total += len(tables)

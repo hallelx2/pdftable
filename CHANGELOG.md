@@ -40,6 +40,41 @@ Real font metrics for the 14 standard PDF fonts. No public API change.
   rune (229 each for the Latin twelve, 190 Symbol, 202 ZapfDingbats). A
   coverage test asserts those counts, so bundled-but-unreachable metrics
   cannot recur silently.
+- fix: glyph bounding boxes rest on the font's real descender. The
+  standard-14 exemption that permits omitting `/Widths` also permits
+  omitting `/FontDescriptor`, so `Ascent`/`Descent` were unavailable and
+  a glyph's box collapsed to `[baseline, baseline+size]`, sitting
+  `descent*size` too high — 2.484pt at 12pt text, 4.968pt at 24pt. A
+  second, independent bug compounded it: descent was scaled by 0.001 but
+  not by the font size, so even a font that *did* supply a descriptor got
+  a descender contribution short by a factor of the font size. Both are
+  fixed. This governs row detection — `lines_strict` and `text` infer row
+  boundaries from word Y extents — so it affected table structure, not
+  just reported coordinates.
+- fix: a glyph straddling a table's outer edge is no longer discarded.
+  Cell assignment picks the cell containing a glyph's centre, which is
+  correct for an interior boundary but deletes content at the table's
+  own edge, where no competing cell exists. On a real 10-K balance sheet
+  the closing `)` of `(16,048)` sat 0.008pt beyond the last column and
+  was dropped, turning accounting notation for −16,048 into +16,048;
+  across five financial statements it flipped the sign of 19% of all
+  negative numbers while leaving every magnitude correct.
+
+### Changed
+
+- Golden position parity is now asserted at **0.01pt on both axes**,
+  down from a 15pt envelope. Measured drift against the fixtures is
+  exactly 0.0000pt. The old envelope was wide enough to pass with the
+  font-metric bugs fully present, so it could not have caught them.
+
+### Added
+
+- `BBox.Viewport(pageHeight, scale)` and `BBox.Normalized(pageWidth,
+  pageHeight)` return a `ViewRect` in viewer coordinates (origin
+  top-left, Y down) for drawing citation highlights over a rendered
+  page. Every coordinate the package reports is already normalised —
+  MediaBox origin translated to (0,0) and `/Rotate` applied — so the
+  only conversion needed is the Y flip, now done once and tested.
 
 ## [0.3.1] - 2026-05-29
 

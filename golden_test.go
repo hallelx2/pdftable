@@ -353,16 +353,22 @@ func assertGoldenWords(t *testing.T, page int, got []pdftable.Word, want []golde
 	// assertion would still pass if the widths regressed all the way
 	// back to the flat guess, which is the bug it exists to catch.
 	//
-	// VERTICAL is NOT solved, and this tolerance is documenting a known
-	// defect rather than absorbing noise. The same standard-14 exemption
-	// that omits /Widths also omits /FontDescriptor, so Ascent/Descent
-	// are 0 and the glyph box falls back to [baseline, baseline+size].
-	// pdfplumber uses the AFM's real descender, so every box sits
-	// descent*size too high. Measured: 2.484pt at 12pt and 4.968pt at
-	// 24pt — both exactly 0.207*size, Helvetica's -207/1000 descender.
-	// Tracked separately; tighten to 0.01 once vertical metrics land.
+	// VERTICAL is now solved too. It previously sat at 6pt documenting a
+	// known defect: the same standard-14 exemption that omits /Widths
+	// also omits /FontDescriptor, so Ascent/Descent were 0 and the glyph
+	// box collapsed to [baseline, baseline+size] instead of resting on
+	// the real descender. Every box sat descent*size too high — measured
+	// at 2.484pt for 12pt text and 4.968pt for 24pt, both exactly
+	// 0.207*size, Helvetica's -207/1000 descender.
+	//
+	// Two causes, both fixed: the AFM vertical metrics are now bundled,
+	// and the descent was being scaled by 0.001 but not by the font size,
+	// so even a font that DID supply a descriptor got a descender
+	// contribution short by a factor of the font size.
+	//
+	// Both axes now measure 0.0000pt against pdfplumber.
 	const posTolX = 0.01 // PDF points
-	const posTolY = 6.0  // PDF points — see above; NOT a passing grade
+	const posTolY = 0.01 // PDF points
 	for i := range want {
 		g := got[i]
 		w := want[i]

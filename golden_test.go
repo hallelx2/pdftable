@@ -20,21 +20,22 @@ import (
 // reference pdfplumber library on the same fixture PDFs. We assert
 // that pdftable's output matches the algorithm-level behaviour of
 // pdfplumber: word count, word text, word order, and word direction
-// are exact; word positions are checked with a tolerance wide enough
-// to absorb known font-metric drift (we use 1000-units-per-em default
-// fallback for standard fonts whose AFM tables we don't bundle yet;
-// pdfplumber uses pdfminer.six's bundled AFM metrics). See AGENT A's
-// v0.0.1 report and the "Parity with pdfplumber" section of the
-// README for the up-to-date list of metric differences.
+// are exact. Horizontal positions now match to 0.01pt — both libraries
+// resolve standard-14 glyph widths from the same Adobe AFM metrics.
+// Vertical positions do not yet; see the tolerance comment in
+// compareWords and the "Parity with pdfplumber" section of the README.
 //
 // Tolerances:
 //
 //   - Word count: must match EXACTLY.
 //   - Word text: must match EXACTLY (byte-equal).
 //   - Word direction: must match EXACTLY.
-//   - Word bbox: ±15 PDF points to absorb font-width drift. Tightening
-//     this tolerance is a v0.2.x goal once we bundle the standard-14
-//     AFM metrics.
+//   - Word bbox X: ±0.01 PDF points. Measured drift is exactly 0.0000pt
+//     now the standard-14 AFM widths are bundled.
+//   - Word bbox Y: ±6 PDF points, and that is a KNOWN DEFECT rather than
+//     an acceptance threshold — standard-14 fonts ship no
+//     /FontDescriptor either, so Ascent/Descent are missing and every
+//     glyph box sits descent*size too high.
 //
 // extract_text() is compared as a sequence of whitespace-separated
 // words (order + text), absorbing spacing differences that come from
@@ -339,12 +340,29 @@ func assertGoldenWords(t *testing.T, page int, got []pdftable.Word, want []golde
 		return
 	}
 
-	// Generous position tolerance to absorb font-metric drift. The
-	// algorithm-level outputs (text, count, order, direction) below
-	// are still asserted exactly; the position checks here are a
-	// regression guard against catastrophic mis-placement, not a
-	// pixel-level parity check.
-	const posTol = 15.0 // PDF points
+	// Position tolerances, split by axis because the two axes are in
+	// different states.
+	//
+	// HORIZONTAL is solved. This was 15pt while pdftable guessed a flat
+	// 500/1000 width for standard-14 fonts shipping no /Widths array;
+	// measured X drift against these fixtures was then 11.99pt max /
+	// 4.79pt mean. With the Adobe Core 14 AFM widths bundled it is
+	// exactly 0.0000pt — pdftable and pdfplumber agree bit-for-bit. 0.01
+	// matches the page-dimension tolerance above and leaves room for
+	// nothing but float noise. Deliberately tight: at 15pt this
+	// assertion would still pass if the widths regressed all the way
+	// back to the flat guess, which is the bug it exists to catch.
+	//
+	// VERTICAL is NOT solved, and this tolerance is documenting a known
+	// defect rather than absorbing noise. The same standard-14 exemption
+	// that omits /Widths also omits /FontDescriptor, so Ascent/Descent
+	// are 0 and the glyph box falls back to [baseline, baseline+size].
+	// pdfplumber uses the AFM's real descender, so every box sits
+	// descent*size too high. Measured: 2.484pt at 12pt and 4.968pt at
+	// 24pt — both exactly 0.207*size, Helvetica's -207/1000 descender.
+	// Tracked separately; tighten to 0.01 once vertical metrics land.
+	const posTolX = 0.01 // PDF points
+	const posTolY = 6.0  // PDF points — see above; NOT a passing grade
 	for i := range want {
 		g := got[i]
 		w := want[i]
@@ -352,16 +370,16 @@ func assertGoldenWords(t *testing.T, page int, got []pdftable.Word, want []golde
 			t.Errorf("page %d word %d: text got %q, want %q", page, i, g.Text, w.Text)
 			continue
 		}
-		if math.Abs(g.X0-w.X0) > posTol {
+		if math.Abs(g.X0-w.X0) > posTolX {
 			t.Errorf("page %d word %d (%q): X0 got %v, want %v", page, i, g.Text, g.X0, w.X0)
 		}
-		if math.Abs(g.X1-w.X1) > posTol {
+		if math.Abs(g.X1-w.X1) > posTolX {
 			t.Errorf("page %d word %d (%q): X1 got %v, want %v", page, i, g.Text, g.X1, w.X1)
 		}
-		if math.Abs(g.Y0-w.Y0) > posTol {
+		if math.Abs(g.Y0-w.Y0) > posTolY {
 			t.Errorf("page %d word %d (%q): Y0 got %v, want %v", page, i, g.Text, g.Y0, w.Y0)
 		}
-		if math.Abs(g.Y1-w.Y1) > posTol {
+		if math.Abs(g.Y1-w.Y1) > posTolY {
 			t.Errorf("page %d word %d (%q): Y1 got %v, want %v", page, i, g.Text, g.Y1, w.Y1)
 		}
 		if g.Upright != w.Upright {

@@ -5,6 +5,7 @@ package pdf
 
 import (
 	"fmt"
+	"unicode/utf8"
 )
 
 // Font is the interpreter's view of a single PDF font resource. Each
@@ -50,6 +51,15 @@ type Font struct {
 	// are 2-byte CIDs. DefaultWidth is used for CIDs not in the map.
 	Widths       map[uint16]float64
 	DefaultWidth float64
+
+	// Standard14 is the Adobe Font Metrics width table (Unicode rune →
+	// /1000ths of an em) for one of the 14 standard PDF fonts, set when
+	// BaseFont names one of them (see Standard14Widths) AND the font
+	// dict carried no /Widths array of its own -- which is spec-legal
+	// for these 14 fonts, since viewers are expected to already know
+	// their metrics. nil for every other font. CharWidth consults this
+	// before falling back to the flat 500 guess.
+	Standard14 map[rune]float64
 
 	// Ascent and Descent are the font's typographic extrema in
 	// /1000ths of a font unit, read from /FontDescriptor. Descent is
@@ -148,6 +158,15 @@ func (f *Font) CharWidth(cid uint16) float64 {
 	if w, ok := f.Widths[cid]; ok {
 		return w
 	}
+	if f.Standard14 != nil {
+		if u := f.DecodeUnicode(cid); u != "" {
+			if r, size := utf8.DecodeRuneInString(u); size == len(u) && r != utf8.RuneError {
+				if w, ok := f.Standard14[r]; ok {
+					return w
+				}
+			}
+		}
+	}
 	if f.DefaultWidth != 0 {
 		return f.DefaultWidth
 	}
@@ -203,10 +222,29 @@ func EncodingByName(name string) [256]string {
 // content interpreter does the array walking). out is the table
 // returned to the font.
 func ApplyDifferences(base [256]string, entries []Difference) [256]string {
+	return ApplyDifferencesWith(base, entries, AdobeGlyphToUnicode)
+}
+
+// ApplyDifferencesWith is ApplyDifferences with a caller-supplied glyph-name
+// resolver.
+//
+// It exists for ZapfDingbats. Its "aNN" glyph names are font-specific and are
+// deliberately unreachable from AdobeGlyphToUnicode, so resolving a
+// /Differences array for that font through the global resolver would write ""
+// into slots we can in fact resolve -- overwriting the correct built-in
+// encoding value and leaving the glyph to decode as "(cid:N)" with no width.
+// readFont passes a font-scoped resolver for the standard 14; everything else
+// keeps using AdobeGlyphToUnicode.
+//
+// An unresolved name still clears the slot rather than leaving the base value
+// in place. That is intentional: /Differences has explicitly reassigned that
+// code to some other glyph, so whatever the base encoding said about it is no
+// longer true, and a "(cid:N)" placeholder is the honest answer.
+func ApplyDifferencesWith(base [256]string, entries []Difference, resolve func(string) string) [256]string {
 	out := base
 	for _, e := range entries {
 		if e.CID >= 0 && e.CID < 256 {
-			out[e.CID] = AdobeGlyphToUnicode(e.GlyphName)
+			out[e.CID] = resolve(e.GlyphName)
 		}
 	}
 	return out
@@ -261,6 +299,18 @@ func AdobeGlyphToUnicode(name string) string {
 		return out
 	}
 	if r, ok := adobeGlyphTable[name]; ok {
+		return r
+	}
+	// Symbol-font glyph names ("Alpha", "universal", "club", ...). These
+	// are genuine AGL entries, so they resolve the same way in any font
+	// that names them -- a /Differences array is free to reference them.
+	// Consulted after adobeGlyphTable so the ~45 names the two tables
+	// share keep their existing values.
+	//
+	// ZapfDingbats' "aNN" names are deliberately NOT reachable here: they
+	// are font-specific, not AGL, and are resolved only via
+	// standard14GlyphToUnicode (reached from Standard14GlyphResolver).
+	if r, ok := symbolGlyphTable[name]; ok {
 		return r
 	}
 	// uniXXXX, uniXXXXXXXX ... — concatenated 4-hex codepoints.
@@ -330,7 +380,11 @@ func parseHex(s string) int {
 //     produce correct output.
 //   - Common additions that appear in real-world /Differences arrays:
 //     fractions, math operators, ligatures, accented Eastern European
-//     letters, Greek letters, arrows.
+//     letters, arrows.
+//
+// Greek and the wider math/symbol repertoire are NOT here — they live in
+// symbolGlyphTable, which AdobeGlyphToUnicode consults immediately after
+// this table.
 //
 // The mapping is exact-match with pdfminer.six's glyphlist.py for the
 // shared entries; anything not here falls through to the uniXXXX /

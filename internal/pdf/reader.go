@@ -186,15 +186,23 @@ func (r *Reader) readFont(ref types.Object) (*Font, error) {
 			enc = "StandardEncoding"
 		}
 		var diffs []Difference
+		// explicitBase records whether the PDF actually named a base
+		// encoding, as opposed to us falling back to the subtype default
+		// above. It matters for Symbol/ZapfDingbats: an /Encoding dict
+		// carrying only /Differences must still sit on top of the font's
+		// built-in encoding, not on StandardEncoding.
+		explicitBase := false
 		if encRef, ok := dict["Encoding"]; ok {
 			if encName, ok := encRef.(types.Name); ok {
 				enc = encName.Value()
+				explicitBase = true
 			} else {
 				encDict, err := r.Ctx.DereferenceDict(encRef)
 				if err == nil && encDict != nil {
 					if base, ok := encDict["BaseEncoding"]; ok {
 						if bn, ok := base.(types.Name); ok {
 							enc = bn.Value()
+							explicitBase = true
 						}
 					}
 					if d, ok := encDict["Differences"]; ok {
@@ -205,12 +213,40 @@ func (r *Reader) readFont(ref types.Object) (*Font, error) {
 				}
 			}
 		}
-		base := EncodingByName(enc)
-		f.cid2unicodeEncoding = ApplyDifferences(base, diffs)
+		var base [256]string
+		if builtin, ok := Standard14BuiltinEncoding(baseFont); ok && !explicitBase {
+			// Symbol and ZapfDingbats carry their own encoding; the four
+			// PDF base encodings do not describe them.
+			base = builtin
+		} else {
+			base = EncodingByName(enc)
+		}
+		// /Differences names are resolved font-scoped for the standard 14.
+		// ZapfDingbats is why: its "aNN" names are invisible to the global
+		// resolver by design, so resolving them there would blank out slots
+		// we can actually resolve.
+		resolve := AdobeGlyphToUnicode
+		if r, ok := Standard14GlyphResolver(baseFont); ok {
+			resolve = r
+		}
+		f.cid2unicodeEncoding = ApplyDifferencesWith(base, diffs, resolve)
 
 		// Widths for simple fonts: /FirstChar /LastChar /Widths.
 		applySimpleWidths(f, dict, r)
 		applyFontDescriptor(f, dict, r)
+
+		// The 14 standard fonts are spec-exempt from carrying their own
+		// /Widths array (PDF 1.7 §9.6.2.2) -- a viewer is expected to
+		// already know their metrics. If this font dict didn't supply
+		// one, and BaseFont names a standard font (directly or via a
+		// common substitute alias like Arial/Times New Roman/Courier
+		// New), fall back to the real AFM widths instead of the flat
+		// 500 guess CharWidth otherwise uses for every glyph.
+		if len(f.Widths) == 0 {
+			if w, ok := Standard14Widths(baseFont); ok {
+				f.Standard14 = w
+			}
+		}
 	default:
 		// Unknown subtype: fall through with whatever we managed to
 		// extract. Better to emit positioned-but-unreadable glyphs

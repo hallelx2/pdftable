@@ -505,14 +505,32 @@ Behaviours that match exactly:
 
 Behaviours that intentionally differ:
 
-- **Position precision drifts when font metrics aren't bundled**.
-  pdfplumber uses pdfminer.six's AFM tables for the standard 14 fonts;
-  we use a default-width fallback for now. Word text and order match
-  exactly; word bboxes drift by up to ~10 PDF points on glyphs whose
-  width isn't in the PDF's /Widths array. Golden tests assert text
-  parity exactly and position parity within a 15-point envelope; the
-  envelope tightens to <1pt once the AFM bundle lands (planned for
-  v0.2.x).
+- **Position precision now matches on the standard 14 fonts; residual
+  drift is limited to embedded fonts that ship no metrics**.
+  pdfplumber uses pdfminer.six's AFM tables for the standard 14 fonts.
+  pdftable now bundles the same Adobe Core 14 metrics, so a font that
+  omits `/Widths` — which is spec-legal for those 14, and was previously
+  the source of up to ~10pt of word-bbox drift — resolves to real
+  per-glyph widths instead of a flat 500 guess. Common substitute names
+  (`Arial`, `Times New Roman`, `Courier New`) alias to their metric
+  equivalents; Narrow and Condensed variants deliberately do not, since
+  regular-width metrics would be confidently wrong there. Word text and
+  order match exactly. What remains is fonts that supply neither
+  `/Widths` nor a recognised standard-14 `/BaseFont` — an embedded
+  subset with no metrics — which still fall back to the flat guess.
+  Measured against the golden fixtures, horizontal drift went from
+  **11.99pt max / 4.79pt mean to exactly 0.0000pt**, and the golden test
+  now asserts X within 0.01pt.
+- **Vertical positions are still off by the font's descender**. The same
+  spec exemption that lets standard-14 fonts omit `/Widths` also lets
+  them omit `/FontDescriptor`, so `Ascent`/`Descent` are unavailable and
+  the glyph box falls back to `[baseline, baseline+size]`. pdfplumber
+  uses the AFM's real descender, so our boxes sit `descent*size` too
+  high — measured at exactly `0.207*size` for Helvetica (2.484pt at
+  12pt, 4.968pt at 24pt). The golden test pins Y at 6pt to document
+  this, not to bless it. Bundling the AFM vertical metrics is the fix,
+  and it matters beyond cosmetics: the `lines_strict` and `text`
+  strategies infer row boundaries from word Y extents.
 - **`Layout=true` output is structurally similar but not byte-equal**.
   Pdfplumber's layout algorithm has version-to-version drift; we
   produce a column-aligned grid with the same density defaults but
@@ -585,14 +603,22 @@ stdlib-only.
   `text` (word-alignment edges), `explicit` (caller-supplied edges),
   and a `pdftable` CLI mirroring pdfplumber's surface.
 - `v0.4.x` — bundle the standard-14 AFM metrics so word bboxes (and
-  therefore cell text) match pdfplumber to within 1 PDF point on
-  standard fonts.
+  therefore cell text) match pdfplumber on standard fonts. **Done**: the
+  Adobe Core 14 metrics ship, and Symbol/ZapfDingbats decode with their
+  own built-in encodings. The golden position envelope is still asserted
+  at 15pt pending a re-measure, so the "within 1 point" claim is not yet
+  evidenced.
 - `v0.5.x` — performance pass: parser benchmarking against
   pdfminer.six and pdfplumber on a representative document corpus.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+The bundled font-metric and glyph tables in `internal/pdf/` are generated from
+Adobe's Glyph List and Core 14 AFM data (BSD-3-Clause) and from pdf.js's
+encoding vectors (Apache-2.0). Attribution and the upstream license texts are
+in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Acknowledgements
 

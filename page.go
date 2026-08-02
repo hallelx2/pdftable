@@ -6,6 +6,7 @@ package pdftable
 import (
 	"fmt"
 	"log"
+	"math"
 	"strings"
 
 	"github.com/hallelx2/pdftable/internal/layout"
@@ -692,12 +693,101 @@ func assembleTableText(tb TableBox, chars []Char, s TableSettings, pageNumber in
 		}
 	}
 
+	cells := tb.CellsGrid
+	if s.MergeSplitTokens {
+		rows, cells = mergeSplitTokens(rows, cells, chars, s.TextTolerance)
+	}
+
 	return &Table{
 		Rows:      rows,
 		BBox:      tb.BBox,
 		Page:      pageNumber,
-		CellsBBox: tb.CellsGrid,
+		CellsBBox: cells,
 	}
+}
+
+// mergeSplitTokens rejoins adjacent cells whose shared boundary cuts
+// through a single token. See TableSettings.MergeSplitTokens for why
+// this is opt-in.
+//
+// A boundary is judged to split a token when the rightmost glyph of the
+// left cell and the leftmost glyph of the right cell sit closer together
+// than tol — the same threshold word grouping uses, so this only ever
+// rejoins glyphs that Words() would have put in one word. Real column
+// gutters are far wider than an intra-word gap, which is what keeps this
+// from collapsing genuinely distinct columns.
+//
+// Both the text and the cell bbox are merged. The bbox matters as much
+// as the text: it is what a citation highlight is drawn from, and a
+// half-value box under-covers the number on screen.
+func mergeSplitTokens(rows [][]string, cells [][]BBox, chars []Char, tol float64) ([][]string, [][]BBox) {
+	if tol <= 0 {
+		tol = 3
+	}
+	outRows := make([][]string, len(rows))
+	outCells := make([][]BBox, len(cells))
+
+	for ri := range rows {
+		var rowText []string
+		var rowCells []BBox
+		for ci := range rows[ri] {
+			cell := BBox{}
+			if ri < len(cells) && ci < len(cells[ri]) {
+				cell = cells[ri][ci]
+			}
+			text := rows[ri][ci]
+
+			// Try to append to the previous cell rather than start a new
+			// one. Only ever merges leftwards, so a run of fragments
+			// collapses into a single cell in one pass.
+			if n := len(rowText); n > 0 && text != "" && rowText[n-1] != "" &&
+				!cell.IsZero() && !rowCells[n-1].IsZero() &&
+				boundarySplitsToken(chars, rowCells[n-1], cell, tol) {
+				rowText[n-1] += text
+				rowCells[n-1] = rowCells[n-1].Union(cell)
+				continue
+			}
+			rowText = append(rowText, text)
+			rowCells = append(rowCells, cell)
+		}
+		outRows[ri] = rowText
+		outCells[ri] = rowCells
+	}
+	return outRows, outCells
+}
+
+// boundarySplitsToken reports whether the glyphs either side of the
+// boundary between left and right are close enough to be one word.
+func boundarySplitsToken(chars []Char, left, right BBox, tol float64) bool {
+	// The two cells must actually be horizontal neighbours on the same
+	// band; a vertical stack shares no boundary to split.
+	if math.Abs(left.X1-right.X0) > 0.5 {
+		return false
+	}
+	var lastLeft, firstRight *Char
+	for i := range chars {
+		c := &chars[i]
+		hMid := (c.X0 + c.X1) / 2
+		vMid := (c.Y0 + c.Y1) / 2
+		if vMid < left.Y0 || vMid >= left.Y1 {
+			continue
+		}
+		if hMid >= left.X0 && hMid < left.X1 {
+			if lastLeft == nil || c.X1 > lastLeft.X1 {
+				lastLeft = c
+			}
+		}
+		if hMid >= right.X0 && hMid < right.X1 {
+			if firstRight == nil || c.X0 < firstRight.X0 {
+				firstRight = c
+			}
+		}
+	}
+	if lastLeft == nil || firstRight == nil {
+		return false
+	}
+	gap := firstRight.X0 - lastLeft.X1
+	return gap >= 0 && gap < tol
 }
 
 // charsInCell returns the chars whose centre point lies inside the

@@ -593,14 +593,22 @@ stdlib-only.
   `text` (word-alignment edges), `explicit` (caller-supplied edges),
   and a `pdftable` CLI mirroring pdfplumber's surface.
 - `v0.4.x` — bundle the standard-14 AFM metrics so word bboxes (and
-  therefore cell text) match pdfplumber to within 1 PDF point on
-  standard fonts.
+  therefore cell text) match pdfplumber on standard fonts. **Done**: the
+  Adobe Core 14 metrics ship, and Symbol/ZapfDingbats decode with their
+  own built-in encodings. The golden position envelope is still asserted
+  at 15pt pending a re-measure, so the "within 1 point" claim is not yet
+  evidenced.
 - `v0.5.x` — performance pass: parser benchmarking against
   pdfminer.six and pdfplumber on a representative document corpus.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+The bundled font-metric and glyph tables in `internal/pdf/` are generated from
+Adobe's Glyph List and Core 14 AFM data (BSD-3-Clause) and from pdf.js's
+encoding vectors (Apache-2.0). Attribution and the upstream license texts are
+in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Acknowledgements
 

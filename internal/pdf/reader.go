@@ -211,6 +211,19 @@ func (r *Reader) readFont(ref types.Object) (*Font, error) {
 		// Widths for simple fonts: /FirstChar /LastChar /Widths.
 		applySimpleWidths(f, dict, r)
 		applyFontDescriptor(f, dict, r)
+
+		// The 14 standard fonts are spec-exempt from carrying their own
+		// /Widths array (PDF 1.7 §9.6.2.2) -- a viewer is expected to
+		// already know their metrics. If this font dict didn't supply
+		// one, and BaseFont names a standard font (directly or via a
+		// common substitute alias like Arial/Times New Roman/Courier
+		// New), fall back to the real AFM widths instead of the flat
+		// 500 guess CharWidth otherwise uses for every glyph.
+		if len(f.Widths) == 0 {
+			if w, ok := Standard14Widths(baseFont); ok {
+				f.Standard14 = w
+			}
+		}
 	default:
 		// Unknown subtype: fall through with whatever we managed to
 		// extract. Better to emit positioned-but-unreadable glyphs

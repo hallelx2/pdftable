@@ -5,6 +5,7 @@ package pdf
 
 import (
 	"fmt"
+	"unicode/utf8"
 )
 
 // Font is the interpreter's view of a single PDF font resource. Each
@@ -50,6 +51,15 @@ type Font struct {
 	// are 2-byte CIDs. DefaultWidth is used for CIDs not in the map.
 	Widths       map[uint16]float64
 	DefaultWidth float64
+
+	// Standard14 is the Adobe Font Metrics width table (Unicode rune →
+	// /1000ths of an em) for one of the 14 standard PDF fonts, set when
+	// BaseFont names one of them (see Standard14Widths) AND the font
+	// dict carried no /Widths array of its own -- which is spec-legal
+	// for these 14 fonts, since viewers are expected to already know
+	// their metrics. nil for every other font. CharWidth consults this
+	// before falling back to the flat 500 guess.
+	Standard14 map[rune]float64
 
 	// Ascent and Descent are the font's typographic extrema in
 	// /1000ths of a font unit, read from /FontDescriptor. Descent is
@@ -147,6 +157,15 @@ func (f *Font) CharWidth(cid uint16) float64 {
 	}
 	if w, ok := f.Widths[cid]; ok {
 		return w
+	}
+	if f.Standard14 != nil {
+		if u := f.DecodeUnicode(cid); u != "" {
+			if r, size := utf8.DecodeRuneInString(u); size == len(u) && r != utf8.RuneError {
+				if w, ok := f.Standard14[r]; ok {
+					return w
+				}
+			}
+		}
 	}
 	if f.DefaultWidth != 0 {
 		return f.DefaultWidth

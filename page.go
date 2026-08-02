@@ -724,27 +724,81 @@ func mergeSplitTokens(rows [][]string, cells [][]BBox, chars []Char, tol float64
 	if tol <= 0 {
 		tol = 3
 	}
+	cols := 0
+	for _, r := range rows {
+		if len(r) > cols {
+			cols = len(r)
+		}
+	}
+	if cols < 2 {
+		return rows, cells
+	}
+
+	// A column boundary is a property of the TABLE, not of one row. Decide
+	// once, over every row, whether boundary ci|ci+1 cuts a token — then
+	// apply that decision uniformly.
+	//
+	// Doing this per-row instead would merge the header band (where the
+	// split occurs) while leaving the data rows alone, so rows would end
+	// up with different column counts and the grid would shear: the
+	// header's second date would sit above the first column of figures.
+	// A ragged table is a worse outcome than the split it set out to fix.
+	drop := make([]bool, cols)
+	for ci := 0; ci+1 < cols; ci++ {
+		for ri := range cells {
+			if ci+1 >= len(cells[ri]) {
+				continue
+			}
+			l, r := cells[ri][ci], cells[ri][ci+1]
+			if l.IsZero() || r.IsZero() {
+				continue
+			}
+			if rows[ri][ci] == "" || rows[ri][ci+1] == "" {
+				continue
+			}
+			if boundarySplitsToken(chars, l, r, tol) {
+				drop[ci] = true
+				break
+			}
+		}
+	}
+	anyDrop := false
+	for _, d := range drop {
+		if d {
+			anyDrop = true
+			break
+		}
+	}
+	if !anyDrop {
+		return rows, cells
+	}
+
 	outRows := make([][]string, len(rows))
 	outCells := make([][]BBox, len(cells))
-
 	for ri := range rows {
 		var rowText []string
 		var rowCells []BBox
-		for ci := range rows[ri] {
+		for ci := 0; ci < cols; ci++ {
+			text := ""
+			if ci < len(rows[ri]) {
+				text = rows[ri][ci]
+			}
 			cell := BBox{}
 			if ri < len(cells) && ci < len(cells[ri]) {
 				cell = cells[ri][ci]
 			}
-			text := rows[ri][ci]
-
-			// Try to append to the previous cell rather than start a new
-			// one. Only ever merges leftwards, so a run of fragments
-			// collapses into a single cell in one pass.
-			if n := len(rowText); n > 0 && text != "" && rowText[n-1] != "" &&
-				!cell.IsZero() && !rowCells[n-1].IsZero() &&
-				boundarySplitsToken(chars, rowCells[n-1], cell, tol) {
-				rowText[n-1] += text
-				rowCells[n-1] = rowCells[n-1].Union(cell)
+			// drop[ci-1] means the boundary to this cell's LEFT is gone,
+			// so it belongs to the cell before it.
+			if ci > 0 && drop[ci-1] && len(rowText) > 0 {
+				n := len(rowText) - 1
+				rowText[n] += text
+				if !cell.IsZero() {
+					if rowCells[n].IsZero() {
+						rowCells[n] = cell
+					} else {
+						rowCells[n] = rowCells[n].Union(cell)
+					}
+				}
 				continue
 			}
 			rowText = append(rowText, text)

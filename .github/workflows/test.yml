@@ -3,8 +3,11 @@ name: Test
 on:
   push:
     branches: [main]
+  # Deliberately unfiltered. A `branches: [main]` filter here means the
+  # matrix only runs on PRs whose BASE is main, so every PR in a stacked
+  # chain (base = another feature branch) silently gets no CI at all —
+  # and the newest, least-reviewed PR is the one left unchecked.
   pull_request:
-    branches: [main]
 
 jobs:
   test:

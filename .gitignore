@@ -23,3 +23,7 @@ go.work.sum
 # OS
 .DS_Store
 Thumbs.db
+
+# Python bytecode from the benchmark harness
+__pycache__/
+*.pyc

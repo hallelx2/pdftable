@@ -108,6 +108,69 @@ func (b BBox) ContainsPoint(x, y float64) bool {
 	return x >= b.X0 && x <= b.X1 && y >= b.Y0 && y <= b.Y1
 }
 
+// ViewRect is a rectangle in viewer coordinates: origin top-left, Y growing
+// DOWN, expressed as position plus size. This is the shape every web
+// rendering target wants — CSS absolute positioning, canvas fillRect,
+// SVG <rect>, and PDF.js viewport output all use it.
+//
+// It is deliberately a different type from BBox so the two coordinate
+// systems cannot be confused at a call site. A BBox is PDF user space
+// (origin bottom-left, Y up); a ViewRect is viewer space (origin top-left,
+// Y down). Converting between them is the single most common source of
+// upside-down highlight overlays.
+type ViewRect struct {
+	Left, Top, Width, Height float64
+}
+
+// Viewport converts b from PDF user space into viewer coordinates,
+// scaled by the ratio between the rendered page and its natural size.
+//
+// This is the transform for drawing a citation highlight over a rendered
+// page. pageHeight is the value from Page.Height(); scale is rendered
+// pixels per PDF point — for a page rasterised at 150 DPI that is
+// 150/72, and for PDF.js it is the viewport scale you passed to
+// getViewport({scale}).
+//
+// Every coordinate pdftable reports — Char, Word, Line, Rect, Table.BBox
+// and Table.CellsBBox — is already normalised: the MediaBox origin has
+// been translated to (0,0) and any /Rotate applied, so the space matches
+// Page.Width() x Page.Height() exactly. That means no per-page fixups
+// are needed here; the only conversion left is the Y flip.
+//
+//	// Highlight a cited table cell over a page rendered at 150 DPI.
+//	r := table.CellsBBox[row][col].Viewport(page.Height(), 150.0/72.0)
+//	// -> CSS: left:r.Left, top:r.Top, width:r.Width, height:r.Height
+func (b BBox) Viewport(pageHeight, scale float64) ViewRect {
+	return ViewRect{
+		Left:   b.X0 * scale,
+		Top:    (pageHeight - b.Y1) * scale,
+		Width:  b.Width() * scale,
+		Height: b.Height() * scale,
+	}
+}
+
+// Normalized converts b into viewer coordinates expressed as fractions
+// of the page, origin top-left, each value in 0..1.
+//
+// Prefer this over Viewport when the frontend can resize the page:
+// percentages stay correct at any zoom level or container width, so the
+// overlay does not have to be recomputed when the viewer re-renders.
+// Multiply by the rendered element's pixel width/height at paint time.
+//
+// Returns the zero ViewRect if either page dimension is non-positive, rather
+// than dividing by zero and emitting NaNs into a JSON payload.
+func (b BBox) Normalized(pageWidth, pageHeight float64) ViewRect {
+	if pageWidth <= 0 || pageHeight <= 0 {
+		return ViewRect{}
+	}
+	return ViewRect{
+		Left:   b.X0 / pageWidth,
+		Top:    (pageHeight - b.Y1) / pageHeight,
+		Width:  b.Width() / pageWidth,
+		Height: b.Height() / pageHeight,
+	}
+}
+
 // Snap rounds each of b's four coordinates to the nearest multiple of
 // step. Used by layout-analysis code to coalesce near-equal positions
 // (e.g. ruling lines drawn at 99.9, 100.0, 100.1) before clustering.

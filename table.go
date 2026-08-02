@@ -163,6 +163,37 @@ type TableSettings struct {
 	// Default: 50000. A negative value disables the cap; zero is treated
 	// as "unset" and filled with the default.
 	MaxIntersections int
+
+	// MergeSplitTokens merges two adjacent cells when the column
+	// boundary between them falls INSIDE a single token — that is, when
+	// the last glyph of the left cell and the first glyph of the right
+	// cell are close enough to belong to the same word.
+	//
+	// The "text" strategy derives column boundaries by clustering word
+	// edges, so a narrow band that happens to align down the page
+	// becomes a column even if it cuts a value in half. On a financial
+	// statement that produces cells like
+	//
+	//	| Less: Accumulated depreciation | ( | 16,135) |
+	//	|                                | December 3 | 1, |
+	//
+	// where the document reads "(16,135)" and "December 31,". No text is
+	// lost, but a consumer treating a cell as one value gets two
+	// fragments, and Table.CellsBBox covers only part of the value —
+	// which matters when the bbox drives a citation highlight.
+	//
+	// OFF by default, deliberately. pdfplumber produces the same splits
+	// (verified against pdfplumber 0.11.9 on a real 10-K: it yields
+	// '(', '16,135)' for that row, and splits the label into
+	// 'Less: Accumula', 'ted depreciation' as well), so enabling this by
+	// default would silently break the parity this package promises.
+	// Turn it on when clean values matter more than byte-compatibility —
+	// feeding a table to an LLM, for instance.
+	//
+	// Merging is bounded by TextTolerance, the same threshold word
+	// grouping uses, so it only ever rejoins glyphs that word grouping
+	// would have placed in one word.
+	MergeSplitTokens bool
 }
 
 // DefaultTableSettings returns settings with the pdfplumber default

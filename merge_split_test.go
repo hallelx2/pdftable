@@ -115,6 +115,52 @@ func TestMergeSplitTokensLeavesRealColumnsAlone(t *testing.T) {
 	}
 }
 
+// TestMergeSplitTokensKeepsTableRectangular is the property that makes
+// the feature safe to use on a real table.
+//
+// A column boundary belongs to the table, not to one row. If the merge
+// decision were made per-row, a header band that happens to contain the
+// split would collapse while the data rows below it did not — leaving
+// rows with different column counts, so the header's second date would
+// sit above the first column of figures. A sheared grid is worse than
+// the split it set out to fix.
+func TestMergeSplitTokensKeepsTableRectangular(t *testing.T) {
+	// Row 0 has the split ("Dec"+"31,"); row 1 does not — its two cells
+	// are a genuine column apart.
+	chars := []Char{
+		// row 0, y 560-568: adjacent glyphs across the boundary
+		{Text: "c", X0: 110, X1: 118, Y0: 560, Y1: 568},
+		{Text: "3", X0: 118.02, X1: 126, Y0: 560, Y1: 568},
+		// row 1, y 540-548: a wide gutter across the same boundary
+		{Text: "A", X0: 92, X1: 100, Y0: 540, Y1: 548},
+		{Text: "9", X0: 160, X1: 168, Y0: 540, Y1: 548},
+	}
+	cells := [][]BBox{
+		{{X0: 90, X1: 118, Y0: 559, Y1: 569}, {X0: 118, X1: 180, Y0: 559, Y1: 569}},
+		{{X0: 90, X1: 118, Y0: 539, Y1: 549}, {X0: 118, X1: 180, Y0: 539, Y1: 549}},
+	}
+	rows := [][]string{{"Dec", "31,"}, {"A", "9"}}
+
+	gotRows, gotCells := mergeSplitTokens(rows, cells, chars, 3)
+
+	if len(gotRows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(gotRows))
+	}
+	if len(gotRows[0]) != len(gotRows[1]) {
+		t.Fatalf("rows have different column counts (%d vs %d) — the grid sheared: %q",
+			len(gotRows[0]), len(gotRows[1]), gotRows)
+	}
+	if len(gotCells[0]) != len(gotCells[1]) {
+		t.Errorf("cell rows have different lengths (%d vs %d)", len(gotCells[0]), len(gotCells[1]))
+	}
+	// The boundary split a token in row 0, so it goes for the whole table —
+	// row 1 merges too, keeping the grid rectangular.
+	want := [][]string{{"Dec31,"}, {"A9"}}
+	if !reflect.DeepEqual(gotRows, want) {
+		t.Errorf("rows = %q, want %q", gotRows, want)
+	}
+}
+
 // TestMergeSplitTokensIsOptIn pins the default. pdfplumber produces the
 // same splits (verified against pdfplumber 0.11.9), so turning this on
 // by default would silently break the parity this package promises.

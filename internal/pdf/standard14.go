@@ -118,27 +118,49 @@ func normalizeStandard14Key(baseFont string) string {
 // standard14WidthsByUnicode holds, per canonical standard-font name, the
 // afmGlyphWidths table resolved from AGL glyph name to Unicode rune.
 // Built once in init() by running every glyph name through
-// AdobeGlyphToUnicode -- the same resolver the encoding tables use, so
-// there's a single source of glyph-name-to-Unicode truth in this
-// package rather than a second copy of AGL logic living here.
+// standard14GlyphToUnicode, which layers the font-specific ZapfDingbats
+// table over the shared AGL resolver -- so adobeGlyphTable plus
+// symbolGlyphTable remain the single source of glyph-name-to-Unicode
+// truth for every font that is not ZapfDingbats.
 var standard14WidthsByUnicode map[string]map[rune]float64
+
+// standard14GlyphToUnicode resolves a glyph name in the context of one
+// of the 14 standard fonts.
+//
+// ZapfDingbats is the only font that needs its own table: its "aNN"
+// names are font-specific rather than AGL, so they must not be visible
+// to the global resolver (a Latin font whose /Differences names "a1"
+// means its own glyph, not U+2701 SCISSORS). Everything else -- Symbol
+// included -- goes through the shared path. The fallback to
+// AdobeGlyphToUnicode also covers the handful of ordinary names in the
+// ZapfDingbats AFM that Adobe's zapfdingbats.txt omits, "space" being
+// the one that actually occurs.
+func standard14GlyphToUnicode(font, gname string) string {
+	if font == "ZapfDingbats" {
+		if u, ok := zapfDingbatsGlyphTable[gname]; ok {
+			return u
+		}
+	}
+	return AdobeGlyphToUnicode(gname)
+}
 
 func init() {
 	standard14WidthsByUnicode = make(map[string]map[rune]float64, len(afmGlyphWidths))
 	for font, byName := range afmGlyphWidths {
 		byRune := make(map[rune]float64, len(byName))
 		for gname, w := range byName {
-			u := AdobeGlyphToUnicode(gname)
+			u := standard14GlyphToUnicode(font, gname)
 			if u == "" {
 				continue
 			}
 			r, size := utf8.DecodeRuneInString(u)
 			if size != len(u) || r == utf8.RuneError {
-				// Multi-rune expansions or unresolved names: none
-				// expected among the standard 14's glyph names, but
-				// skip rather than mis-key if one ever appears. That
-				// single glyph then falls through to Font.CharWidth's
-				// existing DefaultWidth / flat-500 fallback.
+				// Multi-rune expansions or unresolved names. Every glyph
+				// in all 14 fonts resolves to exactly one rune today --
+				// TestStandard14GlyphCoverage pins that -- but skip
+				// rather than mis-key if a future edit breaks it. Such a
+				// glyph falls through to Font.CharWidth's existing
+				// DefaultWidth / flat-500 fallback.
 				continue
 			}
 			byRune[r] = w
@@ -159,4 +181,23 @@ func Standard14Widths(baseFont string) (widths map[rune]float64, ok bool) {
 	}
 	w, found := standard14WidthsByUnicode[canonical]
 	return w, found
+}
+
+// Standard14BuiltinEncoding returns the built-in code-to-Unicode
+// encoding for baseFont, for the two standard fonts that have one.
+//
+// Symbol and ZapfDingbats do not use any of the four PDF base
+// encodings -- they ship their own. A PDF is not required to declare
+// /Encoding for them, so without this a Symbol font gets StandardEncoding
+// and code 0x61 decodes as "a" rather than alpha: wrong extracted text,
+// and a width lookup that misses. The other 12 standard fonts return
+// false here and keep the existing base-encoding behaviour.
+func Standard14BuiltinEncoding(baseFont string) (enc [256]string, ok bool) {
+	switch standard14Aliases[normalizeStandard14Key(baseFont)] {
+	case "Symbol":
+		return symbolBuiltinEncoding, true
+	case "ZapfDingbats":
+		return zapfDingbatsBuiltinEncoding, true
+	}
+	return enc, false
 }

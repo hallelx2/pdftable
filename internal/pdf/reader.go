@@ -186,15 +186,23 @@ func (r *Reader) readFont(ref types.Object) (*Font, error) {
 			enc = "StandardEncoding"
 		}
 		var diffs []Difference
+		// explicitBase records whether the PDF actually named a base
+		// encoding, as opposed to us falling back to the subtype default
+		// above. It matters for Symbol/ZapfDingbats: an /Encoding dict
+		// carrying only /Differences must still sit on top of the font's
+		// built-in encoding, not on StandardEncoding.
+		explicitBase := false
 		if encRef, ok := dict["Encoding"]; ok {
 			if encName, ok := encRef.(types.Name); ok {
 				enc = encName.Value()
+				explicitBase = true
 			} else {
 				encDict, err := r.Ctx.DereferenceDict(encRef)
 				if err == nil && encDict != nil {
 					if base, ok := encDict["BaseEncoding"]; ok {
 						if bn, ok := base.(types.Name); ok {
 							enc = bn.Value()
+							explicitBase = true
 						}
 					}
 					if d, ok := encDict["Differences"]; ok {
@@ -205,7 +213,14 @@ func (r *Reader) readFont(ref types.Object) (*Font, error) {
 				}
 			}
 		}
-		base := EncodingByName(enc)
+		var base [256]string
+		if builtin, ok := Standard14BuiltinEncoding(baseFont); ok && !explicitBase {
+			// Symbol and ZapfDingbats carry their own encoding; the four
+			// PDF base encodings do not describe them.
+			base = builtin
+		} else {
+			base = EncodingByName(enc)
+		}
 		f.cid2unicodeEncoding = ApplyDifferences(base, diffs)
 
 		// Widths for simple fonts: /FirstChar /LastChar /Widths.

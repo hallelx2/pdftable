@@ -282,6 +282,18 @@ func AdobeGlyphToUnicode(name string) string {
 	if r, ok := adobeGlyphTable[name]; ok {
 		return r
 	}
+	// Symbol-font glyph names ("Alpha", "universal", "club", ...). These
+	// are genuine AGL entries, so they resolve the same way in any font
+	// that names them -- a /Differences array is free to reference them.
+	// Consulted after adobeGlyphTable so the ~45 names the two tables
+	// share keep their existing values.
+	//
+	// ZapfDingbats' "aNN" names are deliberately NOT reachable here: they
+	// are font-specific, not AGL, and are resolved only via
+	// zapfDingbatsGlyphToUnicode.
+	if r, ok := symbolGlyphTable[name]; ok {
+		return r
+	}
 	// uniXXXX, uniXXXXXXXX ... — concatenated 4-hex codepoints.
 	if len(name) > 3 && name[:3] == "uni" {
 		rest := name[3:]
@@ -349,7 +361,11 @@ func parseHex(s string) int {
 //     produce correct output.
 //   - Common additions that appear in real-world /Differences arrays:
 //     fractions, math operators, ligatures, accented Eastern European
-//     letters, Greek letters, arrows.
+//     letters, arrows.
+//
+// Greek and the wider math/symbol repertoire are NOT here — they live in
+// symbolGlyphTable, which AdobeGlyphToUnicode consults immediately after
+// this table.
 //
 // The mapping is exact-match with pdfminer.six's glyphlist.py for the
 // shared entries; anything not here falls through to the uniXXXX /

@@ -201,3 +201,22 @@ func Standard14BuiltinEncoding(baseFont string) (enc [256]string, ok bool) {
 	}
 	return enc, false
 }
+
+// Standard14GlyphResolver returns a glyph-name resolver scoped to
+// baseFont's canonical standard-14 identity, for use with
+// ApplyDifferencesWith.
+//
+// Only ZapfDingbats actually behaves differently -- it is the one font
+// whose glyph names are kept out of the global resolver -- but returning
+// a resolver for all 14 keeps readFont from having to special-case it.
+// ok is false for anything that is not a standard 14 font, and the
+// caller should use AdobeGlyphToUnicode directly.
+func Standard14GlyphResolver(baseFont string) (resolve func(string) string, ok bool) {
+	canonical, found := standard14Aliases[normalizeStandard14Key(baseFont)]
+	if !found {
+		return nil, false
+	}
+	return func(gname string) string {
+		return standard14GlyphToUnicode(canonical, gname)
+	}, true
+}

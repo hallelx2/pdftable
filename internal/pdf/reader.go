@@ -221,7 +221,15 @@ func (r *Reader) readFont(ref types.Object) (*Font, error) {
 		} else {
 			base = EncodingByName(enc)
 		}
-		f.cid2unicodeEncoding = ApplyDifferences(base, diffs)
+		// /Differences names are resolved font-scoped for the standard 14.
+		// ZapfDingbats is why: its "aNN" names are invisible to the global
+		// resolver by design, so resolving them there would blank out slots
+		// we can actually resolve.
+		resolve := AdobeGlyphToUnicode
+		if r, ok := Standard14GlyphResolver(baseFont); ok {
+			resolve = r
+		}
+		f.cid2unicodeEncoding = ApplyDifferencesWith(base, diffs, resolve)
 
 		// Widths for simple fonts: /FirstChar /LastChar /Widths.
 		applySimpleWidths(f, dict, r)

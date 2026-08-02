@@ -140,6 +140,55 @@ func TestSymbolBuiltinEncoding(t *testing.T) {
 	}
 }
 
+// TestZapfDingbatsDifferencesUseFontScopedResolver covers the failure
+// mode that keeping "aNN" out of the global resolver introduced.
+//
+// ApplyDifferences resolves every name through AdobeGlyphToUnicode,
+// which cannot see zapfDingbatsGlyphTable. So a ZapfDingbats font whose
+// /Encoding dict carries only /Differences kept the right built-in base
+// encoding and then had those very slots overwritten with "" -- the
+// glyph decoded as "(cid:N)" and lost its width, even though we hold the
+// mapping. readFont now passes a font-scoped resolver instead.
+func TestZapfDingbatsDifferencesUseFontScopedResolver(t *testing.T) {
+	base, ok := Standard14BuiltinEncoding("ZapfDingbats")
+	if !ok {
+		t.Fatal("ZapfDingbats built-in encoding not found")
+	}
+	diffs := []Difference{{CID: 0x41, GlyphName: "a1"}}
+
+	// The global resolver blanks the slot — the bug.
+	if got := ApplyDifferences(base, diffs)[0x41]; got != "" {
+		t.Errorf("ApplyDifferences resolved %q to %q; test premise is stale", "a1", got)
+	}
+
+	// The font-scoped resolver keeps it.
+	resolve, ok := Standard14GlyphResolver("ZapfDingbats")
+	if !ok {
+		t.Fatal("Standard14GlyphResolver(ZapfDingbats) not found")
+	}
+	enc := ApplyDifferencesWith(base, diffs, resolve)
+	if enc[0x41] != "✁" {
+		t.Errorf("ApplyDifferencesWith slot 0x41 = %q, want ✁ (U+2701, the a1 dingbat)", enc[0x41])
+	}
+
+	// And the width now resolves rather than falling back to 500.
+	f := &Font{
+		BaseFont:            "ZapfDingbats",
+		IsSimple:            true,
+		cid2unicodeEncoding: enc,
+		Widths:              map[uint16]float64{},
+	}
+	f.Standard14, _ = Standard14Widths("ZapfDingbats")
+	if got := f.CharWidth(0x41); got != 974 {
+		t.Errorf("CharWidth(0x41) = %v, want 974 (a1)", got)
+	}
+
+	// Non-standard-14 fonts keep the global resolver.
+	if _, ok := Standard14GlyphResolver("SomeEmbeddedSubsetFont"); ok {
+		t.Error("Standard14GlyphResolver matched a non-standard-14 font")
+	}
+}
+
 // TestSymbolCharWidthEndToEnd is the payoff: a Symbol font with no
 // /Widths array, built the way readFont now builds one, must report the
 // real per-glyph AFM widths rather than the flat 500 guess.

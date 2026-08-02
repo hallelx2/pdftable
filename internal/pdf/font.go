@@ -222,10 +222,29 @@ func EncodingByName(name string) [256]string {
 // content interpreter does the array walking). out is the table
 // returned to the font.
 func ApplyDifferences(base [256]string, entries []Difference) [256]string {
+	return ApplyDifferencesWith(base, entries, AdobeGlyphToUnicode)
+}
+
+// ApplyDifferencesWith is ApplyDifferences with a caller-supplied glyph-name
+// resolver.
+//
+// It exists for ZapfDingbats. Its "aNN" glyph names are font-specific and are
+// deliberately unreachable from AdobeGlyphToUnicode, so resolving a
+// /Differences array for that font through the global resolver would write ""
+// into slots we can in fact resolve -- overwriting the correct built-in
+// encoding value and leaving the glyph to decode as "(cid:N)" with no width.
+// readFont passes a font-scoped resolver for the standard 14; everything else
+// keeps using AdobeGlyphToUnicode.
+//
+// An unresolved name still clears the slot rather than leaving the base value
+// in place. That is intentional: /Differences has explicitly reassigned that
+// code to some other glyph, so whatever the base encoding said about it is no
+// longer true, and a "(cid:N)" placeholder is the honest answer.
+func ApplyDifferencesWith(base [256]string, entries []Difference, resolve func(string) string) [256]string {
 	out := base
 	for _, e := range entries {
 		if e.CID >= 0 && e.CID < 256 {
-			out[e.CID] = AdobeGlyphToUnicode(e.GlyphName)
+			out[e.CID] = resolve(e.GlyphName)
 		}
 	}
 	return out
@@ -290,7 +309,7 @@ func AdobeGlyphToUnicode(name string) string {
 	//
 	// ZapfDingbats' "aNN" names are deliberately NOT reachable here: they
 	// are font-specific, not AGL, and are resolved only via
-	// zapfDingbatsGlyphToUnicode.
+	// standard14GlyphToUnicode (reached from Standard14GlyphResolver).
 	if r, ok := symbolGlyphTable[name]; ok {
 		return r
 	}

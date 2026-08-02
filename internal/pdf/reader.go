@@ -247,6 +247,18 @@ func (r *Reader) readFont(ref types.Object) (*Font, error) {
 				f.Standard14 = w
 			}
 		}
+
+		// The same exemption also lets these fonts omit /FontDescriptor,
+		// which is where Ascent/Descent live. Without them a glyph's box
+		// collapses to [baseline, baseline+size] instead of resting on
+		// the real descender, so every box sits descent*size too high --
+		// and row detection is built on word Y extents.
+		if f.Ascent == 0 && f.Descent == 0 {
+			if vm, ok := Standard14VMetrics(baseFont); ok {
+				f.Ascent = vm.Ascent
+				f.Descent = vm.Descent
+			}
+		}
 	default:
 		// Unknown subtype: fall through with whatever we managed to
 		// extract. Better to emit positioned-but-unreadable glyphs

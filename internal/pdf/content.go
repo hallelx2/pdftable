@@ -647,7 +647,15 @@ func (it *Interpreter) showString(s []byte) {
 		// Combined transform: text → user space.
 		combined := Mult(t.Matrix, it.state.CTM)
 		// Glyph bbox in font design units, then user space.
-		descent := font.Descent * 0.001
+		//
+		// Descent is stored in /1000ths of an em, so it has to be scaled
+		// by BOTH 0.001 and the font size to reach text space -- the same
+		// two factors dxScale applies to the advance width. pdfminer.six
+		// does this as get_descent() * fontsize, where get_descent() is
+		// already descent/1000. Omitting fontSize made the descender
+		// contribution a fixed fraction of a point instead of a fraction
+		// of the glyph, which at 12pt is off by 12x.
+		descent := font.Descent * 0.001 * fontSize
 		adv := font.CharWidth(cid) * dxScale
 		bbox := [4]float64{0, descent + rise, adv, descent + rise + fontSize}
 		x0, y0, x1, y1 := ApplyRect(combined,

@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Real font metrics for the 14 standard PDF fonts. No public API change.
+Real font metrics for the 14 standard PDF fonts, plus a font-coverage
+test corpus. One behaviour change to a default, noted below.
+
+### Changed (behaviour)
+
+- **`DefaultWordOpts()` now enables `UseExplicitSpaces`.** pdfplumber's
+  `WordExtractor` ends a word *at* a whitespace glyph, before any gap
+  test runs; pdftable dropped spaces and re-inferred boundaries purely
+  from the gap. At small type that silently over-merges: an 8pt space is
+  278/1000 x 8 = 2.22pt, under the 3pt `XTolerance`, so
+  `Wim illegible 3,142 (16,048)` came back as one run while pdfplumber
+  returned four words. Body type in real documents is routinely 8-9pt, so
+  this was not an edge case. With it on, pdftable matches pdfplumber
+  word-for-word and coordinate-for-coordinate across all 12 Latin
+  standard fonts at 8/12/24pt.
 
 ### Fixed
 
@@ -87,7 +101,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Real font metrics for the 14 standard PDF fonts. No public API change.
+Real font metrics for the 14 standard PDF fonts, plus a font-coverage
+test corpus. One behaviour change to a default, noted below.
+
+### Changed (behaviour)
+
+- **`DefaultWordOpts()` now enables `UseExplicitSpaces`.** pdfplumber's
+  `WordExtractor` ends a word *at* a whitespace glyph, before any gap
+  test runs; pdftable dropped spaces and re-inferred boundaries purely
+  from the gap. At small type that silently over-merges: an 8pt space is
+  278/1000 x 8 = 2.22pt, under the 3pt `XTolerance`, so
+  `Wim illegible 3,142 (16,048)` came back as one run while pdfplumber
+  returned four words. Body type in real documents is routinely 8-9pt, so
+  this was not an edge case. With it on, pdftable matches pdfplumber
+  word-for-word and coordinate-for-coordinate across all 12 Latin
+  standard fonts at 8/12/24pt.
 
 ### Fixed
 
@@ -207,7 +235,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Real font metrics for the 14 standard PDF fonts. No public API change.
+Real font metrics for the 14 standard PDF fonts, plus a font-coverage
+test corpus. One behaviour change to a default, noted below.
+
+### Changed (behaviour)
+
+- **`DefaultWordOpts()` now enables `UseExplicitSpaces`.** pdfplumber's
+  `WordExtractor` ends a word *at* a whitespace glyph, before any gap
+  test runs; pdftable dropped spaces and re-inferred boundaries purely
+  from the gap. At small type that silently over-merges: an 8pt space is
+  278/1000 x 8 = 2.22pt, under the 3pt `XTolerance`, so
+  `Wim illegible 3,142 (16,048)` came back as one run while pdfplumber
+  returned four words. Body type in real documents is routinely 8-9pt, so
+  this was not an edge case. With it on, pdftable matches pdfplumber
+  word-for-word and coordinate-for-coordinate across all 12 Latin
+  standard fonts at 8/12/24pt.
 
 ### Fixed
 
@@ -352,7 +394,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Real font metrics for the 14 standard PDF fonts. No public API change.
+Real font metrics for the 14 standard PDF fonts, plus a font-coverage
+test corpus. One behaviour change to a default, noted below.
+
+### Changed (behaviour)
+
+- **`DefaultWordOpts()` now enables `UseExplicitSpaces`.** pdfplumber's
+  `WordExtractor` ends a word *at* a whitespace glyph, before any gap
+  test runs; pdftable dropped spaces and re-inferred boundaries purely
+  from the gap. At small type that silently over-merges: an 8pt space is
+  278/1000 x 8 = 2.22pt, under the 3pt `XTolerance`, so
+  `Wim illegible 3,142 (16,048)` came back as one run while pdfplumber
+  returned four words. Body type in real documents is routinely 8-9pt, so
+  this was not an edge case. With it on, pdftable matches pdfplumber
+  word-for-word and coordinate-for-coordinate across all 12 Latin
+  standard fonts at 8/12/24pt.
 
 ### Fixed
 
@@ -586,7 +642,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Real font metrics for the 14 standard PDF fonts. No public API change.
+Real font metrics for the 14 standard PDF fonts, plus a font-coverage
+test corpus. One behaviour change to a default, noted below.
+
+### Changed (behaviour)
+
+- **`DefaultWordOpts()` now enables `UseExplicitSpaces`.** pdfplumber's
+  `WordExtractor` ends a word *at* a whitespace glyph, before any gap
+  test runs; pdftable dropped spaces and re-inferred boundaries purely
+  from the gap. At small type that silently over-merges: an 8pt space is
+  278/1000 x 8 = 2.22pt, under the 3pt `XTolerance`, so
+  `Wim illegible 3,142 (16,048)` came back as one run while pdfplumber
+  returned four words. Body type in real documents is routinely 8-9pt, so
+  this was not an edge case. With it on, pdftable matches pdfplumber
+  word-for-word and coordinate-for-coordinate across all 12 Latin
+  standard fonts at 8/12/24pt.
 
 ### Fixed
 
@@ -942,7 +1012,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Real font metrics for the 14 standard PDF fonts. No public API change.
+Real font metrics for the 14 standard PDF fonts, plus a font-coverage
+test corpus. One behaviour change to a default, noted below.
+
+### Changed (behaviour)
+
+- **`DefaultWordOpts()` now enables `UseExplicitSpaces`.** pdfplumber's
+  `WordExtractor` ends a word *at* a whitespace glyph, before any gap
+  test runs; pdftable dropped spaces and re-inferred boundaries purely
+  from the gap. At small type that silently over-merges: an 8pt space is
+  278/1000 x 8 = 2.22pt, under the 3pt `XTolerance`, so
+  `Wim illegible 3,142 (16,048)` came back as one run while pdfplumber
+  returned four words. Body type in real documents is routinely 8-9pt, so
+  this was not an edge case. With it on, pdftable matches pdfplumber
+  word-for-word and coordinate-for-coordinate across all 12 Latin
+  standard fonts at 8/12/24pt.
 
 ### Fixed
 
@@ -1340,7 +1424,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Real font metrics for the 14 standard PDF fonts. No public API change.
+Real font metrics for the 14 standard PDF fonts, plus a font-coverage
+test corpus. One behaviour change to a default, noted below.
+
+### Changed (behaviour)
+
+- **`DefaultWordOpts()` now enables `UseExplicitSpaces`.** pdfplumber's
+  `WordExtractor` ends a word *at* a whitespace glyph, before any gap
+  test runs; pdftable dropped spaces and re-inferred boundaries purely
+  from the gap. At small type that silently over-merges: an 8pt space is
+  278/1000 x 8 = 2.22pt, under the 3pt `XTolerance`, so
+  `Wim illegible 3,142 (16,048)` came back as one run while pdfplumber
+  returned four words. Body type in real documents is routinely 8-9pt, so
+  this was not an edge case. With it on, pdftable matches pdfplumber
+  word-for-word and coordinate-for-coordinate across all 12 Latin
+  standard fonts at 8/12/24pt.
 
 ### Fixed
 

@@ -791,7 +791,24 @@ func mergeSplitTokens(rows [][]string, cells [][]BBox, chars []Char, tol float64
 			// so it belongs to the cell before it.
 			if ci > 0 && drop[ci-1] && len(rowText) > 0 {
 				n := len(rowText) - 1
-				rowText[n] += text
+				// Whether to merge is a table-wide decision, so the grid
+				// stays rectangular. The SEPARATOR is per-row, because the
+				// same boundary can cut a token on one row and fall
+				// between two real words on another.
+				//
+				// Joining blind produced "millions,except" from
+				// "(Dollars in millions," + "except per share amount)" —
+				// the boundary was dropped for a split several rows above,
+				// and this row paid for it.
+				sep := " "
+				prevCell := rowCells[n]
+				if text == "" || rowText[n] == "" {
+					sep = ""
+				} else if !cell.IsZero() && !prevCell.IsZero() &&
+					boundarySplitsToken(chars, prevCell, cell, tol) {
+					sep = "" // this row really is one token cut in half
+				}
+				rowText[n] += sep + text
 				if !cell.IsZero() {
 					if rowCells[n].IsZero() {
 						rowCells[n] = cell
@@ -818,12 +835,20 @@ func boundarySplitsToken(chars []Char, left, right BBox, tol float64) bool {
 	if math.Abs(left.X1-right.X0) > 0.5 {
 		return false
 	}
+	// Nearest ink either side of the boundary, ignoring whitespace: a
+	// space glyph is flush against its neighbours, so counting it as ink
+	// would make every space look like a zero-gap intra-word join.
 	var lastLeft, firstRight *Char
+	var spaces []*Char
 	for i := range chars {
 		c := &chars[i]
 		hMid := (c.X0 + c.X1) / 2
 		vMid := (c.Y0 + c.Y1) / 2
 		if vMid < left.Y0 || vMid >= left.Y1 {
+			continue
+		}
+		if strings.TrimSpace(c.Text) == "" {
+			spaces = append(spaces, c)
 			continue
 		}
 		if hMid >= left.X0 && hMid < left.X1 {
@@ -840,6 +865,18 @@ func boundarySplitsToken(chars []Char, left, right BBox, tol float64) bool {
 	if lastLeft == nil || firstRight == nil {
 		return false
 	}
+
+	// A space sitting IN the gap settles it: the PDF is stating outright
+	// that a word ends here, so whatever the geometry says, this is not
+	// one token cut in half. Only the gap is checked — a space elsewhere
+	// in either cell says nothing about this boundary, and treating it as
+	// if it did stops every merge from happening at all.
+	for _, sp := range spaces {
+		if sp.X1 > lastLeft.X1 && sp.X0 < firstRight.X0 {
+			return false
+		}
+	}
+
 	gap := firstRight.X0 - lastLeft.X1
 	return gap >= 0 && gap < tol
 }

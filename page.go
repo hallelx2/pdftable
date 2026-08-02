@@ -460,9 +460,27 @@ func (p *page) findTableEdges(s TableSettings) ([]layout.Edge, error) {
 	pageWidth := p.Width()
 	pageHeight := p.Height()
 
+	// Resolve StrategyAuto now that the page's drawn edges are known.
+	vStrategy := resolveAuto(s.VerticalStrategy, layout.Vertical, lineLikeEdges)
+	hStrategy := resolveAuto(s.HorizontalStrategy, layout.Horizontal, lineLikeEdges)
+
+	// Auto may have turned an axis into "text" after the fact, so the
+	// words it needs might not have been fetched above.
+	if words == nil && (vStrategy == StrategyText || hStrategy == StrategyText) {
+		opts := DefaultWordOpts()
+		opts.XTolerance = s.TextTolerance
+		opts.YTolerance = s.TextTolerance
+		opts.KeepBlankChars = s.KeepBlankChars
+		w, err := p.Words(opts)
+		if err != nil {
+			return nil, err
+		}
+		words = w
+	}
+
 	// Per-axis base edge derivation.
-	vEdges := p.baseEdges(s.VerticalStrategy, layout.Vertical, lineLikeEdges, words, s)
-	hEdges := p.baseEdges(s.HorizontalStrategy, layout.Horizontal, lineLikeEdges, words, s)
+	vEdges := p.baseEdges(vStrategy, layout.Vertical, lineLikeEdges, words, s)
+	hEdges := p.baseEdges(hStrategy, layout.Horizontal, lineLikeEdges, words, s)
 
 	// Explicit overrides are added on top of whichever base set was
 	// chosen. With StrategyExplicit the base set is empty so the
@@ -493,8 +511,42 @@ func (p *page) findTableEdges(s TableSettings) ([]layout.Edge, error) {
 // drawn primitives (Lines / Rects / Curves), i.e. whether
 // findTableEdges needs to call Objects(). Text and explicit
 // strategies don't.
+//
+// StrategyAuto counts: it cannot decide anything without seeing what the
+// page drew, and it may well resolve to "lines".
 func isLineLike(s TableStrategy) bool {
-	return s == StrategyLines || s == StrategyLinesStrict
+	return s == StrategyLines || s == StrategyLinesStrict || s == StrategyAuto
+}
+
+// minEdgesForAxis is how many rulings an axis needs before Auto treats it
+// as genuinely ruled. Two is the floor that can bound a cell; a single
+// stray rule (an underline, a header separator, a page border) is not a
+// table and must not be read as evidence of one.
+const minEdgesForAxis = 2
+
+// resolveAuto turns StrategyAuto into a concrete strategy for one axis,
+// using the edges the page actually drew. Every other strategy passes
+// through untouched.
+//
+// See StrategyAuto for why the "neither axis is ruled" case deliberately
+// resolves to lines rather than text.
+func resolveAuto(s TableStrategy, orientation layout.Orientation, lineLikeEdges []layout.Edge) TableStrategy {
+	if s != StrategyAuto {
+		return s
+	}
+	other := layout.Horizontal
+	if orientation == layout.Horizontal {
+		other = layout.Vertical
+	}
+	if len(layout.FilterEdgesByOrientation(lineLikeEdges, orientation)) >= minEdgesForAxis {
+		return StrategyLines
+	}
+	if len(layout.FilterEdgesByOrientation(lineLikeEdges, other)) >= minEdgesForAxis {
+		// The other axis is ruled, so a table is really here — we just
+		// have to infer this axis from word alignment.
+		return StrategyText
+	}
+	return StrategyLines
 }
 
 // baseEdges returns the per-axis edges produced by the named strategy.

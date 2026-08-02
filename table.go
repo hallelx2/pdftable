@@ -58,6 +58,34 @@ const (
 	// The "explicit" strategy on an axis requires at least two
 	// coordinates on that axis; fewer than two produces an error.
 	StrategyExplicit TableStrategy = "explicit"
+
+	// StrategyAuto picks "lines" or "text" for its axis by looking at
+	// what the page actually drew. It exists for the very common table
+	// that is ruled on ONE axis only.
+	//
+	// A table with horizontal rules and no vertical ones — booktabs
+	// style, and the house style of most government and academic
+	// publishing — yields no ruling intersections at all, so "lines"
+	// finds nothing on either axis. On the ICDAR 2013 competition set
+	// that accounted for every document where pdftable detected no
+	// table whatsoever: us-017 has 218 horizontal rules and 0 vertical,
+	// us-018 has 226 and 0, us-025 has 225 and 0.
+	//
+	// The rule, per axis:
+	//
+	//   - this axis has usable rulings           -> "lines"
+	//   - it does not, but the OTHER axis does   -> "text"
+	//   - neither axis has rulings               -> "lines" (find nothing)
+	//
+	// That last case is the important one. Falling back to "text" when
+	// the page has no rulings at all is what makes a naive lines->text
+	// fallback score WORSE than "lines" alone: on the same benchmark it
+	// drops precision from 0.865 to 0.223, because a prose page has
+	// word alignment too and the text strategy will happily report a
+	// table for it. Rulings on the other axis are the evidence that a
+	// table is really there; without that evidence Auto declines to
+	// guess.
+	StrategyAuto TableStrategy = "auto"
 )
 
 // TableSettings controls table finding. Construct via

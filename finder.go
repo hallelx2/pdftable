@@ -869,7 +869,7 @@ func ensureSupportedStrategies(s TableSettings) error {
 		{"horizontal", s.HorizontalStrategy},
 	} {
 		switch pair.strategy {
-		case StrategyLines, StrategyLinesStrict, StrategyText, StrategyExplicit:
+		case StrategyLines, StrategyLinesStrict, StrategyText, StrategyExplicit, StrategyAuto:
 			// ok
 		default:
 			return fmt.Errorf("%w: unknown %s_strategy %q", ErrUnsupported, pair.axis, pair.strategy)

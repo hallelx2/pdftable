@@ -154,10 +154,9 @@ def main() -> int:
 
     systems = {
         "pdftable (lines)": lambda p: run_pdftable(exe, p, "lines", False),
-        "pdftable (fallback)": lambda p: run_pdftable(exe, p, "fallback", False),
-        "pdftable (fallback+merge)": lambda p: run_pdftable(exe, p, "fallback", True),
+        "pdftable (AUTO)": lambda p: run_pdftable(exe, p, "auto", False),
+        "pdftable (AUTO +merge)": lambda p: run_pdftable(exe, p, "auto", True),
         "pdfplumber (lines)": lambda p: run_pdfplumber(p, "lines"),
-        "pdfplumber (text)": lambda p: run_pdfplumber(p, "text"),
     }
     totals = {k: [0, 0, 0] for k in systems}
 

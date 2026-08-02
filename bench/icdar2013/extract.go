@@ -39,12 +39,24 @@ func main() {
 	lines := mk(pdftable.StrategyLines, pdftable.StrategyLines)
 	text := mk(pdftable.StrategyText, pdftable.StrategyText)
 
+	// "mixed" is the booktabs case: horizontal rules give the rows, word
+	// alignment gives the columns. A table ruled only horizontally has no
+	// ruling intersections at all, so pure "lines" cannot see it.
+	mixed := mk(pdftable.StrategyText, pdftable.StrategyLines)
+	auto := mk(pdftable.StrategyAuto, pdftable.StrategyAuto)
+
 	var attempts []pdftable.TableSettings
 	switch *strategy {
 	case "lines":
 		attempts = []pdftable.TableSettings{lines}
 	case "text":
 		attempts = []pdftable.TableSettings{text}
+	case "mixed":
+		attempts = []pdftable.TableSettings{mixed}
+	case "lines-then-mixed":
+		attempts = []pdftable.TableSettings{lines, mixed}
+	case "auto":
+		attempts = []pdftable.TableSettings{auto}
 	default: // fallback: ruled cells first, whitespace alignment if none
 		attempts = []pdftable.TableSettings{lines, text}
 	}

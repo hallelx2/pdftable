@@ -664,12 +664,25 @@ func assembleTableText(tb TableBox, chars []Char, s TableSettings, pageNumber in
 	wordOpts.KeepBlankChars = s.KeepBlankChars
 
 	for ri, row := range tb.CellsGrid {
+		// Find the outermost occupied columns in this row. Their outer
+		// edges bound the table itself, not a neighbouring cell, so they
+		// are allowed to keep glyphs that straddle them (see
+		// charsInCellEdges).
+		first, last := -1, -1
+		for ci := range row {
+			if !row[ci].IsZero() {
+				if first < 0 {
+					first = ci
+				}
+				last = ci
+			}
+		}
 		for ci, cell := range row {
 			if cell.IsZero() {
 				rows[ri][ci] = ""
 				continue
 			}
-			cellChars := charsInCell(chars, cell)
+			cellChars := charsInCellEdges(chars, cell, ci == first, ci == last)
 			if len(cellChars) == 0 {
 				rows[ri][ci] = ""
 				continue
@@ -697,11 +710,47 @@ func assembleTableText(tb TableBox, chars []Char, s TableSettings, pageNumber in
 // right). The exclusivity makes the boundary deterministic — a glyph
 // sitting at exactly the column boundary goes into the left column.
 func charsInCell(chars []Char, cell BBox) []Char {
+	return charsInCellEdges(chars, cell, false, false)
+}
+
+// charsInCellEdges is charsInCell with the option to treat the left
+// and/or right edge as the OUTER boundary of the table rather than a
+// boundary shared with a neighbouring cell.
+//
+// Midpoint assignment is the correct rule for an interior boundary: it
+// decides which of two candidate cells owns a glyph that straddles them,
+// and every glyph still lands somewhere. At the table's outer edge there
+// is no competing cell, so the same rule silently deletes the glyph
+// instead of placing it.
+//
+// That is not hypothetical. On 3M's 2018 10-K balance sheet the value
+// "(16,048)" ends with a ")" whose centre sits at x=537.879 while the
+// last column ends at x=537.871 — a shortfall of 0.008pt, roughly a
+// nine-thousandth of an inch. The ")" was dropped, turning the
+// accounting notation for -16,048 into a plain 16,048. Across that
+// filing's five financial statements it corrupted 19% of all negative
+// numbers, silently flipping their sign.
+//
+// So on an outer edge we also keep glyphs that merely OVERLAP it. The
+// widening is bounded by the glyph itself, so it cannot pull in
+// unrelated page content — only a glyph genuinely crossing the table's
+// own boundary.
+func charsInCellEdges(chars []Char, cell BBox, outerLeft, outerRight bool) []Char {
 	out := make([]Char, 0, len(chars))
 	for _, c := range chars {
 		hMid := (c.X0 + c.X1) / 2
 		vMid := (c.Y0 + c.Y1) / 2
-		if hMid >= cell.X0 && hMid < cell.X1 && vMid >= cell.Y0 && vMid < cell.Y1 {
+		if vMid < cell.Y0 || vMid >= cell.Y1 {
+			continue
+		}
+		in := hMid >= cell.X0 && hMid < cell.X1
+		if !in && outerRight && hMid >= cell.X1 && c.X0 < cell.X1 {
+			in = true // straddles the table's right edge
+		}
+		if !in && outerLeft && hMid < cell.X0 && c.X1 > cell.X0 {
+			in = true // straddles the table's left edge
+		}
+		if in {
 			out = append(out, c)
 		}
 	}

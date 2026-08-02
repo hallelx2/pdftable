@@ -603,12 +603,38 @@ stdlib-only.
   and a `pdftable` CLI mirroring pdfplumber's surface.
 - `v0.4.x` — bundle the standard-14 AFM metrics so word bboxes (and
   therefore cell text) match pdfplumber on standard fonts. **Done**: the
-  Adobe Core 14 metrics ship, and Symbol/ZapfDingbats decode with their
-  own built-in encodings. The golden position envelope is still asserted
-  at 15pt pending a re-measure, so the "within 1 point" claim is not yet
-  evidenced.
-- `v0.5.x` — performance pass: parser benchmarking against
-  pdfminer.six and pdfplumber on a representative document corpus.
+  Adobe Core 14 metrics ship, Symbol/ZapfDingbats decode with their own
+  built-in encodings, and measured position drift against pdfplumber is
+  **0.0000pt on both axes** — the golden envelope is now asserted at
+  0.01pt. See
+  [the evaluation](docs/evaluations/2026-08-02-font-metrics-and-table-fidelity.md).
+- `v0.5.x` — **table detection**. The ICDAR 2013 benchmark puts
+  end-to-end F1 at 0.362, level with pdfplumber's 0.370, and the
+  diagnostic is unambiguous: precision 0.865, recall 0.229. What we
+  extract is right; we miss three quarters of the tables, because the
+  `lines` strategy needs *intersecting* rulings and a horizontally-ruled
+  table produces none. See
+  [the evaluation](docs/evaluations/2026-08-02-icdar2013-table-structure.md).
+- `v0.6.x` — performance pass: parser speed against pdfminer.six and
+  pdfplumber on a representative corpus.
+
+## Repository layout
+
+`pdftable` is a single Go package, so its source lives in the repository
+root — that is the import path, and Go keeps `_test.go` files next to the
+code they cover.
+
+| | |
+| --- | --- |
+| `*.go` | the library |
+| `internal/pdf/` | content-stream interpreter, fonts, encodings |
+| `internal/layout/` | edge/intersection/cell geometry |
+| `cmd/pdftable/` | CLI |
+| `bench/` | accuracy benchmarks against public datasets — a **separate Go module**, so it never adds a dependency here |
+| `docs/evaluations/` | dated measurement reports, with their caveats |
+| `scripts/` | fixture and golden-file generators |
+| `testdata/golden/` | fixtures compared against pdfplumber |
+| `testdata/fonts/` | fixtures where pdfplumber is wrong, asserted directly |
 
 ## License
 

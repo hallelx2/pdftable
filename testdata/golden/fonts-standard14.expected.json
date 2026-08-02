@@ -1,0 +1,1397 @@
+{
+  "name": "fonts-standard14",
+  "pages": [
+    {
+      "number": 1,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 87.992,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 90.21600000000001,
+          "x1": 116.888,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 119.11200000000001,
+          "x1": 139.12800000000001,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 141.35200000000003,
+          "x1": 171.14400000000003,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 95.988,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 99.324,
+          "x1": 139.332,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 142.668,
+          "x1": 172.69199999999998,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 176.02799999999996,
+          "x1": 220.71599999999998,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 119.976,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 126.648,
+          "x1": 206.664,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 213.33599999999998,
+          "x1": 273.38399999999996,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 280.0559999999999,
+          "x1": 369.43199999999996,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 88.88799999999999,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 91.112,
+          "x1": 120.904,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 123.12799999999999,
+          "x1": 143.14399999999998,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 145.368,
+          "x1": 175.16,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 97.332,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 100.668,
+          "x1": 145.356,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 148.692,
+          "x1": 178.71599999999998,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 182.05199999999996,
+          "x1": 226.73999999999998,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 122.664,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 129.336,
+          "x1": 218.712,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 225.384,
+          "x1": 285.43199999999996,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 292.1039999999999,
+          "x1": 381.47999999999996,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 87.992,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 90.21600000000001,
+          "x1": 116.888,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 119.11200000000001,
+          "x1": 139.12800000000001,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 141.35200000000003,
+          "x1": 171.14400000000003,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 95.988,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 99.324,
+          "x1": 139.332,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 142.668,
+          "x1": 172.69199999999998,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 176.02799999999996,
+          "x1": 220.71599999999998,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 119.976,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 126.648,
+          "x1": 206.664,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 213.33599999999998,
+          "x1": 273.38399999999996,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 280.0559999999999,
+          "x1": 369.43199999999996,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 88.88799999999999,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 91.112,
+          "x1": 120.904,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 123.12799999999999,
+          "x1": 143.14399999999998,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 145.368,
+          "x1": 175.16,
+          "y0": 698.344,
+          "y1": 706.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 97.332,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 100.668,
+          "x1": 145.356,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 148.692,
+          "x1": 178.71599999999998,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 182.05199999999996,
+          "x1": 226.73999999999998,
+          "y0": 637.516,
+          "y1": 649.516,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 122.664,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 129.336,
+          "x1": 218.712,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 225.384,
+          "x1": 285.43199999999996,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 292.1039999999999,
+          "x1": 381.47999999999996,
+          "y0": 575.032,
+          "y1": 599.032,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 88.0,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 90.0,
+          "x1": 116.22400000000002,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 118.22400000000002,
+          "x1": 136.22400000000002,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 138.22400000000002,
+          "x1": 165.55200000000002,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 96.0,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 99.0,
+          "x1": 138.33599999999998,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 141.336,
+          "x1": 168.336,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 171.336,
+          "x1": 212.328,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 120.0,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 126.0,
+          "x1": 204.672,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 210.672,
+          "x1": 264.672,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 270.672,
+          "x1": 352.656,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 88.888,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 90.888,
+          "x1": 117.56,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 119.56,
+          "x1": 137.56,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 139.56,
+          "x1": 166.88799999999998,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 97.332,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 100.332,
+          "x1": 140.34,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 143.34,
+          "x1": 170.34,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 173.34,
+          "x1": 214.33200000000002,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 122.66399999999999,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 128.664,
+          "x1": 208.68,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 214.68,
+          "x1": 268.68,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 274.68,
+          "x1": 356.66400000000004,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 86.664,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 88.664,
+          "x1": 114.888,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 116.888,
+          "x1": 134.888,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 136.888,
+          "x1": 164.216,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 93.996,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 96.996,
+          "x1": 136.332,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 139.332,
+          "x1": 166.332,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 169.332,
+          "x1": 210.32399999999998,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 115.992,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 121.99199999999999,
+          "x1": 200.664,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 206.664,
+          "x1": 260.664,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 266.664,
+          "x1": 348.64799999999997,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 87.56,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 89.56,
+          "x1": 115.784,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 117.78399999999999,
+          "x1": 135.784,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 137.784,
+          "x1": 165.11199999999997,
+          "y0": 698.264,
+          "y1": 706.264,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 95.34,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 98.34,
+          "x1": 137.67600000000002,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 140.676,
+          "x1": 167.676,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 170.676,
+          "x1": 211.668,
+          "y0": 637.396,
+          "y1": 649.396,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 118.67999999999999,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 124.68,
+          "x1": 203.352,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 209.352,
+          "x1": 263.352,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 269.352,
+          "x1": 351.336,
+          "y0": 574.792,
+          "y1": 598.792,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 86.39999999999999,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 91.2,
+          "x1": 134.4,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 139.2,
+          "x1": 163.2,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 167.99999999999997,
+          "x1": 206.39999999999998,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 93.60000000000001,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 100.8,
+          "x1": 165.60000000000002,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 172.8,
+          "x1": 208.8,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 216.0,
+          "x1": 273.5999999999999,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 115.19999999999999,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 129.6,
+          "x1": 259.20000000000005,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 273.6,
+          "x1": 345.6,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 360.0,
+          "x1": 475.1999999999998,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 86.39999999999999,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 91.2,
+          "x1": 134.4,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 139.2,
+          "x1": 163.2,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 167.99999999999997,
+          "x1": 206.39999999999998,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 93.60000000000001,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 100.8,
+          "x1": 165.60000000000002,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 172.8,
+          "x1": 208.8,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 216.0,
+          "x1": 273.5999999999999,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 115.19999999999999,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 129.6,
+          "x1": 259.20000000000005,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 273.6,
+          "x1": 345.6,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 360.0,
+          "x1": 475.1999999999998,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 86.39999999999999,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 91.2,
+          "x1": 134.4,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 139.2,
+          "x1": 163.2,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 167.99999999999997,
+          "x1": 206.39999999999998,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 93.60000000000001,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 100.8,
+          "x1": 165.60000000000002,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 172.8,
+          "x1": 208.8,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 216.0,
+          "x1": 273.5999999999999,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 115.19999999999999,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 129.6,
+          "x1": 259.20000000000005,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 273.6,
+          "x1": 345.6,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 360.0,
+          "x1": 475.1999999999998,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    },
+    {
+      "number": 12,
+      "width": 612,
+      "height": 792,
+      "extract_text": "Wim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)\nWim illegible 3,142 (16,048)",
+      "extract_words": [
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 86.39999999999999,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 91.2,
+          "x1": 134.4,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 139.2,
+          "x1": 163.2,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 167.99999999999997,
+          "x1": 206.39999999999998,
+          "y0": 698.448,
+          "y1": 706.448,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 93.60000000000001,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 100.8,
+          "x1": 165.60000000000002,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 172.8,
+          "x1": 208.8,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 216.0,
+          "x1": 273.5999999999999,
+          "y0": 637.672,
+          "y1": 649.672,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "Wim",
+          "x0": 72.0,
+          "x1": 115.19999999999999,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "illegible",
+          "x0": 129.6,
+          "x1": 259.20000000000005,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "3,142",
+          "x0": 273.6,
+          "x1": 345.6,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        },
+        {
+          "text": "(16,048)",
+          "x0": 360.0,
+          "x1": 475.1999999999998,
+          "y0": 575.344,
+          "y1": 599.344,
+          "upright": true,
+          "direction": "ltr"
+        }
+      ]
+    }
+  ]
+}

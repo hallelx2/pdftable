@@ -184,6 +184,17 @@ func DefaultWordOpts() WordOpts {
 		HorizontalLTR: true,
 		VerticalTTB:   true,
 		Expand:        true,
+		// On by default because pdfplumber does the same, and leaving it
+		// off silently over-merges small type. pdfplumber's WordExtractor
+		// ends a word AT a whitespace glyph, before any gap test runs;
+		// only when there is no space glyph does it fall back to the gap.
+		//
+		// Without this, 8pt text merged into one run: the space is
+		// 278/1000 x 8 = 2.22pt wide, under the 3pt XTolerance, so the
+		// gap check saw no boundary even though the PDF had emitted an
+		// explicit space. Body type in real documents is routinely 8-9pt,
+		// so this was not an edge case.
+		UseExplicitSpaces: true,
 	}
 }
 

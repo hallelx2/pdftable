@@ -115,6 +115,40 @@ func TestMergeSplitTokensLeavesRealColumnsAlone(t *testing.T) {
 	}
 }
 
+// TestBoundarySplitsTokenRespectsExplicitSpaces guards against welding
+// real words together.
+//
+// The space glyph is itself a Char, sitting flush against its neighbours.
+// Measuring gaps without excluding it makes every space look like an
+// intra-word join — on a real 10-K that turned "(Dollars in millions,"
+// plus "except per share amount)" into "millions,except". A whitespace
+// glyph across the boundary is the PDF stating outright that a word ends
+// there, and it outranks any geometry.
+func TestBoundarySplitsTokenRespectsExplicitSpaces(t *testing.T) {
+	left := BBox{X0: 90, X1: 118, Y0: 559, Y1: 569}
+	right := BBox{X0: 118, X1: 180, Y0: 559, Y1: 569}
+
+	// No space: adjacent glyphs really are one token.
+	noSpace := []Char{
+		glyph(",", 110, 116),
+		glyph("e", 116.02, 124),
+	}
+	if !boundarySplitsToken(noSpace, left, right, 3) {
+		t.Error("adjacent glyphs with no space should read as a split token")
+	}
+
+	// Same geometry, but with the space glyph the producer actually
+	// emitted. Now it is two words and must not be merged.
+	withSpace := []Char{
+		glyph(",", 110, 116),
+		glyph(" ", 116, 118.5),
+		glyph("e", 118.52, 126),
+	}
+	if boundarySplitsToken(withSpace, left, right, 3) {
+		t.Error("an explicit space across the boundary means two words — must not merge")
+	}
+}
+
 // TestMergeSplitTokensKeepsTableRectangular is the property that makes
 // the feature safe to use on a real table.
 //
@@ -155,7 +189,7 @@ func TestMergeSplitTokensKeepsTableRectangular(t *testing.T) {
 	}
 	// The boundary split a token in row 0, so it goes for the whole table —
 	// row 1 merges too, keeping the grid rectangular.
-	want := [][]string{{"Dec31,"}, {"A9"}}
+	want := [][]string{{"Dec31,"}, {"A 9"}}
 	if !reflect.DeepEqual(gotRows, want) {
 		t.Errorf("rows = %q, want %q", gotRows, want)
 	}

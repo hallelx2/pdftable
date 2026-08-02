@@ -518,9 +518,19 @@ Behaviours that intentionally differ:
   order match exactly. What remains is fonts that supply neither
   `/Widths` nor a recognised standard-14 `/BaseFont` — an embedded
   subset with no metrics — which still fall back to the flat guess.
-  Golden tests continue to assert position parity within a 15-point
-  envelope; that envelope is now conservative rather than necessary, and
-  tightening it needs a golden re-measure.
+  Measured against the golden fixtures, horizontal drift went from
+  **11.99pt max / 4.79pt mean to exactly 0.0000pt**, and the golden test
+  now asserts X within 0.01pt.
+- **Vertical positions are still off by the font's descender**. The same
+  spec exemption that lets standard-14 fonts omit `/Widths` also lets
+  them omit `/FontDescriptor`, so `Ascent`/`Descent` are unavailable and
+  the glyph box falls back to `[baseline, baseline+size]`. pdfplumber
+  uses the AFM's real descender, so our boxes sit `descent*size` too
+  high — measured at exactly `0.207*size` for Helvetica (2.484pt at
+  12pt, 4.968pt at 24pt). The golden test pins Y at 6pt to document
+  this, not to bless it. Bundling the AFM vertical metrics is the fix,
+  and it matters beyond cosmetics: the `lines_strict` and `text`
+  strategies infer row boundaries from word Y extents.
 - **`Layout=true` output is structurally similar but not byte-equal**.
   Pdfplumber's layout algorithm has version-to-version drift; we
   produce a column-aligned grid with the same density defaults but

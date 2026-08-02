@@ -505,14 +505,22 @@ Behaviours that match exactly:
 
 Behaviours that intentionally differ:
 
-- **Position precision drifts when font metrics aren't bundled**.
-  pdfplumber uses pdfminer.six's AFM tables for the standard 14 fonts;
-  we use a default-width fallback for now. Word text and order match
-  exactly; word bboxes drift by up to ~10 PDF points on glyphs whose
-  width isn't in the PDF's /Widths array. Golden tests assert text
-  parity exactly and position parity within a 15-point envelope; the
-  envelope tightens to <1pt once the AFM bundle lands (planned for
-  v0.2.x).
+- **Position precision now matches on the standard 14 fonts; residual
+  drift is limited to embedded fonts that ship no metrics**.
+  pdfplumber uses pdfminer.six's AFM tables for the standard 14 fonts.
+  pdftable now bundles the same Adobe Core 14 metrics, so a font that
+  omits `/Widths` — which is spec-legal for those 14, and was previously
+  the source of up to ~10pt of word-bbox drift — resolves to real
+  per-glyph widths instead of a flat 500 guess. Common substitute names
+  (`Arial`, `Times New Roman`, `Courier New`) alias to their metric
+  equivalents; Narrow and Condensed variants deliberately do not, since
+  regular-width metrics would be confidently wrong there. Word text and
+  order match exactly. What remains is fonts that supply neither
+  `/Widths` nor a recognised standard-14 `/BaseFont` — an embedded
+  subset with no metrics — which still fall back to the flat guess.
+  Golden tests continue to assert position parity within a 15-point
+  envelope; that envelope is now conservative rather than necessary, and
+  tightening it needs a golden re-measure.
 - **`Layout=true` output is structurally similar but not byte-equal**.
   Pdfplumber's layout algorithm has version-to-version drift; we
   produce a column-aligned grid with the same density defaults but

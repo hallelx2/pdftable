@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Real font metrics for the 14 standard PDF fonts. No public API change.
+
+### Fixed
+
+- fix: standard-14 fonts now resolve to their true Adobe AFM advance
+  widths. PDF 1.7 §9.6.2.2 lets those 14 fonts omit `/Widths` entirely,
+  on the assumption that a consumer already knows their metrics —
+  pdftable did not, so every glyph in such a font fell through to a flat
+  500/1000 guess. `i` and `m` came out the same width, and the error
+  accumulated across a line into up to ~10pt of word-bbox drift. Since
+  the `text` and `lines_strict` table strategies infer column boundaries
+  from word positions, that drift could move a column split. Common
+  substitute names (`Arial`, `Times New Roman`, `Courier New`, subset
+  tags, case and whitespace variants) alias to their metric equivalents.
+  Narrow and Condensed variants deliberately do **not** match: they
+  share a family name but not the metrics, and returning regular-width
+  numbers would produce a confident, wrong bbox rather than an honest
+  fallback.
+- fix: Symbol and ZapfDingbats are decoded with their own built-in
+  encodings instead of StandardEncoding. Symbol code `0x61` previously
+  decoded as `a` rather than `alpha`, so these fonts extracted as
+  mis-mapped Latin — a text-correctness bug, not only a metrics one.
+  Greek and the wider maths repertoire (`Alpha`, `universal`, `club`, …)
+  now resolve through the shared Adobe Glyph List path, which also fixes
+  `/Differences` arrays in ordinary fonts that name those glyphs.
+  ZapfDingbats' `aNN` names stay font-scoped on purpose: Adobe ships
+  them separately from the AGL because they are font-specific, and
+  resolving them globally would corrupt any font whose `/Differences`
+  happens to name `a1`.
+- fix: all 14 standard fonts now resolve every AFM glyph to a distinct
+  rune (229 each for the Latin twelve, 190 Symbol, 202 ZapfDingbats). A
+  coverage test asserts those counts, so bundled-but-unreachable metrics
+  cannot recur silently.
+
 ## [0.3.1] - 2026-05-29
 
 Performance fix for the cell-finding stage. The v0.3.0 public API

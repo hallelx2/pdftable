@@ -4,6 +4,15 @@
 | --- | --- |
 | [`evaluations/`](evaluations/) | dated accuracy findings — what was measured, against what, and what it does not prove |
 
+A seven-part written account of this work — *Reading a PDF like a printer* —
+is published on the [Vectorless blog](https://github.com/hallelx2/vectorless/tree/main/apps/blogs/content/posts).
+It narrates what the evaluation reports measure.
+
+The prose lives there rather than here on purpose. It existed in both
+places for a while, and two copies of the same seven posts drift the
+moment either is edited. Reports stay here, next to the code and the
+benchmarks that produce them; narrative lives where it is published.
+
 User-facing documentation lives in the root [`README.md`](../README.md);
 release history in [`CHANGELOG.md`](../CHANGELOG.md).
 

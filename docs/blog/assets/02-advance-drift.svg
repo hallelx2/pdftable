@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 600" width="1100" height="600" role="img" aria-label="How a wrong glyph width accumulates into word-position drift">
+  <rect width="1100" height="600" fill="#FCFCFD"/>
+
+  <text x="48" y="52" font-family="Geist Mono, ui-monospace, monospace" font-size="12" letter-spacing="2" fill="#71717A">POSITION IS A RUNNING SUM</text>
+  <text x="48" y="90" font-family="Geist, Inter, system-ui, sans-serif" font-size="21" font-weight="500" fill="#0A0A0A">One wrong width moves every glyph after it</text>
+
+  <!-- TRUE widths -->
+  <text x="48" y="146" font-family="Geist Mono, ui-monospace, monospace" font-size="12" letter-spacing="1.6" fill="#1456f0">TRUE AFM WIDTHS</text>
+  <g transform="translate(48,164)">
+    <line x1="0" y1="52" x2="1000" y2="52" stroke="#E5E7EB" stroke-width="1"/>
+    <!-- i=222 m=833 W=944 i=222 -->
+    <g>
+      <rect x="0"   y="20" width="26"  height="32" fill="#1456f0" opacity="0.12" stroke="#1456f0" stroke-width="1"/>
+      <text x="13"  y="43" font-family="Geist, sans-serif" font-size="17" fill="#0A0A0A" text-anchor="middle">i</text>
+      <text x="13"  y="72" font-family="Geist Mono, monospace" font-size="11" fill="#71717A" text-anchor="middle">222</text>
+
+      <rect x="26"  y="20" width="100" height="32" fill="#1456f0" opacity="0.12" stroke="#1456f0" stroke-width="1"/>
+      <text x="76"  y="43" font-family="Geist, sans-serif" font-size="17" fill="#0A0A0A" text-anchor="middle">m</text>
+      <text x="76"  y="72" font-family="Geist Mono, monospace" font-size="11" fill="#71717A" text-anchor="middle">833</text>
+
+      <rect x="126" y="20" width="113" height="32" fill="#1456f0" opacity="0.12" stroke="#1456f0" stroke-width="1"/>
+      <text x="182" y="43" font-family="Geist, sans-serif" font-size="17" fill="#0A0A0A" text-anchor="middle">W</text>
+      <text x="182" y="72" font-family="Geist Mono, monospace" font-size="11" fill="#71717A" text-anchor="middle">944</text>
+
+      <rect x="239" y="20" width="26"  height="32" fill="#1456f0" opacity="0.12" stroke="#1456f0" stroke-width="1"/>
+      <text x="252" y="43" font-family="Geist, sans-serif" font-size="17" fill="#0A0A0A" text-anchor="middle">i</text>
+      <text x="252" y="72" font-family="Geist Mono, monospace" font-size="11" fill="#71717A" text-anchor="middle">222</text>
+    </g>
+    <line x1="265" y1="10" x2="265" y2="60" stroke="#1456f0" stroke-width="2"/>
+    <text x="278" y="43" font-family="Geist Mono, monospace" font-size="12" fill="#1456f0">word ends here</text>
+  </g>
+
+  <!-- GUESSED widths -->
+  <text x="48" y="290" font-family="Geist Mono, ui-monospace, monospace" font-size="12" letter-spacing="1.6" fill="#ea5ec1">FLAT 500 GUESS — WHAT PDFTABLE DID</text>
+  <g transform="translate(48,308)">
+    <line x1="0" y1="52" x2="1000" y2="52" stroke="#E5E7EB" stroke-width="1"/>
+    <g>
+      <rect x="0"   y="20" width="60" height="32" fill="#ea5ec1" opacity="0.10" stroke="#ea5ec1" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="30"  y="43" font-family="Geist, sans-serif" font-size="17" fill="#0A0A0A" text-anchor="middle">i</text>
+      <text x="30"  y="72" font-family="Geist Mono, monospace" font-size="11" fill="#ea5ec1" text-anchor="middle">500</text>
+
+      <rect x="60"  y="20" width="60" height="32" fill="#ea5ec1" opacity="0.10" stroke="#ea5ec1" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="90"  y="43" font-family="Geist, sans-serif" font-size="17" fill="#0A0A0A" text-anchor="middle">m</text>
+      <text x="90"  y="72" font-family="Geist Mono, monospace" font-size="11" fill="#ea5ec1" text-anchor="middle">500</text>
+
+      <rect x="120" y="20" width="60" height="32" fill="#ea5ec1" opacity="0.10" stroke="#ea5ec1" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="150" y="43" font-family="Geist, sans-serif" font-size="17" fill="#0A0A0A" text-anchor="middle">W</text>
+      <text x="150" y="72" font-family="Geist Mono, monospace" font-size="11" fill="#ea5ec1" text-anchor="middle">500</text>
+
+      <rect x="180" y="20" width="60" height="32" fill="#ea5ec1" opacity="0.10" stroke="#ea5ec1" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="210" y="43" font-family="Geist, sans-serif" font-size="17" fill="#0A0A0A" text-anchor="middle">i</text>
+      <text x="210" y="72" font-family="Geist Mono, monospace" font-size="11" fill="#ea5ec1" text-anchor="middle">500</text>
+    </g>
+    <line x1="240" y1="10" x2="240" y2="60" stroke="#ea5ec1" stroke-width="2"/>
+    <line x1="265" y1="10" x2="265" y2="60" stroke="#1456f0" stroke-width="2" stroke-dasharray="4 3"/>
+    <path d="M240 66 L265 66" stroke="#ea5ec1" stroke-width="1.5"/>
+    <text x="278" y="70" font-family="Geist Mono, monospace" font-size="12" fill="#ea5ec1">error after 4 glyphs</text>
+  </g>
+
+  <!-- accumulation -->
+  <g transform="translate(48,440)">
+    <text x="0" y="0" font-family="Geist Mono, ui-monospace, monospace" font-size="12" letter-spacing="1.6" fill="#71717A">ACROSS A FULL LINE</text>
+    <rect x="0" y="16" width="1000" height="1" fill="#E5E7EB"/>
+    <g font-family="Geist, Inter, system-ui, sans-serif" font-size="15" fill="#3F3F46">
+      <text x="0" y="48">4 glyphs</text>
+      <text x="150" y="48" font-family="Geist Mono, monospace" fill="#0A0A0A">~0.3pt off</text>
+      <text x="330" y="48">40 glyphs</text>
+      <text x="480" y="48" font-family="Geist Mono, monospace" fill="#ea5ec1">11.99pt off</text>
+      <text x="700" y="48">= more than one character's width</text>
+    </g>
+  </g>
+
+  <text x="48" y="558" font-family="Instrument Serif, Georgia, serif" font-style="italic" font-size="19" fill="#3F3F46">Like pacing out a room when every step is slightly wrong — one step is fine, forty puts you in the wrong room.</text>
+</svg>

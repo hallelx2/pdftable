@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" width="1100" height="560" role="img" aria-label="What a PDF actually contains versus what a reader assumes">
+  <rect width="1100" height="560" fill="#FCFCFD"/>
+
+  <text x="48" y="52" font-family="Geist Mono, ui-monospace, monospace" font-size="12" letter-spacing="2" fill="#71717A">WHAT IS ACTUALLY IN THE FILE</text>
+
+  <!-- LEFT: the assumption -->
+  <text x="48" y="98" font-family="Geist, Inter, system-ui, sans-serif" font-size="19" font-weight="500" fill="#0A0A0A">What people assume a PDF stores</text>
+
+  <g transform="translate(48,120)">
+    <rect width="450" height="330" rx="10" fill="#ffffff" stroke="#E5E7EB"/>
+    <g font-family="Geist, Inter, system-ui, sans-serif" font-size="15" fill="#3F3F46">
+      <rect x="24" y="30" width="402" height="34" rx="6" fill="#f7f8fa"/>
+      <text x="40" y="52">Paragraphs, sentences, words</text>
+
+      <rect x="24" y="78" width="402" height="34" rx="6" fill="#f7f8fa"/>
+      <text x="40" y="100">Headings and section structure</text>
+
+      <rect x="24" y="126" width="402" height="34" rx="6" fill="#f7f8fa"/>
+      <text x="40" y="148">Tables with rows and columns</text>
+
+      <rect x="24" y="174" width="402" height="34" rx="6" fill="#f7f8fa"/>
+      <text x="40" y="196">Reading order</text>
+
+      <rect x="24" y="222" width="402" height="34" rx="6" fill="#f7f8fa"/>
+      <text x="40" y="244">Where one word ends and the next begins</text>
+    </g>
+    <text x="24" y="296" font-family="Geist Mono, ui-monospace, monospace" font-size="12" letter-spacing="1.4" fill="#ea5ec1">NONE OF THIS EXISTS</text>
+  </g>
+
+  <!-- arrow -->
+  <g transform="translate(520,285)">
+    <line x1="0" y1="0" x2="58" y2="0" stroke="#71717A" stroke-width="1.5"/>
+    <path d="M58 0 L50 -5 L50 5 Z" fill="#71717A"/>
+  </g>
+
+  <!-- RIGHT: reality, as a content stream -->
+  <text x="602" y="98" font-family="Geist, Inter, system-ui, sans-serif" font-size="19" font-weight="500" fill="#0A0A0A">What it stores instead</text>
+
+  <g transform="translate(602,120)">
+    <rect width="450" height="330" rx="10" fill="#0A0A0A"/>
+    <text x="22" y="34" font-family="Geist Mono, ui-monospace, monospace" font-size="11" letter-spacing="1.6" fill="#71717A">CONTENT STREAM</text>
+    <g font-family="Geist Mono, ui-monospace, monospace" font-size="14">
+      <text x="22" y="72"  fill="#8ab4ff">BT</text><text x="52" y="72" fill="#e6e6e6">                     begin text</text>
+      <text x="22" y="98"  fill="#8ab4ff">/F1 12 Tf</text><text x="118" y="98" fill="#e6e6e6">          font, size</text>
+      <text x="22" y="124" fill="#8ab4ff">72 720 Td</text><text x="118" y="124" fill="#e6e6e6">          put the pen here</text>
+      <text x="22" y="150" fill="#8ab4ff">(Revenue) Tj</text><text x="150" y="150" fill="#e6e6e6">       paint these glyphs</text>
+      <text x="22" y="176" fill="#8ab4ff">ET</text><text x="52" y="176" fill="#e6e6e6">                     end text</text>
+
+      <text x="22" y="220" fill="#8ab4ff">72 700 m</text><text x="118" y="220" fill="#e6e6e6">           move to</text>
+      <text x="22" y="246" fill="#8ab4ff">540 700 l</text><text x="118" y="246" fill="#e6e6e6">          line to</text>
+      <text x="22" y="272" fill="#8ab4ff">S</text><text x="52" y="272" fill="#e6e6e6">                      stroke it</text>
+    </g>
+    <text x="22" y="308" font-family="Geist Mono, ui-monospace, monospace" font-size="12" letter-spacing="1.4" fill="#ea5ec1">DRAWING COMMANDS, NOT CONTENT</text>
+  </g>
+
+  <text x="48" y="502" font-family="Geist, Inter, system-ui, sans-serif" font-size="15" fill="#3F3F46">The stream never says where the second glyph goes. It says where the <tspan font-weight="500" fill="#0A0A0A">first</tspan> one starts, and leaves you to add up how wide each one is.</text>
+  <text x="48" y="530" font-family="Instrument Serif, Georgia, serif" font-style="italic" font-size="19" fill="#3F3F46">Every word, line and table is inferred — never read.</text>
+</svg>

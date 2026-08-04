@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 600" width="1100" height="600" role="img" aria-label="Hybrid architecture: a layout model supplies the grid, pdftable fills the cells">
+  <rect width="1100" height="600" fill="#FCFCFD"/>
+
+  <text x="48" y="52" font-family="Geist Mono, ui-monospace, monospace" font-size="12" letter-spacing="2" fill="#71717A">SPLIT BY WHICH HALF IS WEAK</text>
+  <text x="48" y="90" font-family="Geist, Inter, system-ui, sans-serif" font-size="21" font-weight="500" fill="#0A0A0A">The model finds the grid. The parser reads the cells.</text>
+
+  <!-- input -->
+  <g transform="translate(48,140)">
+    <rect x="0" y="40" width="150" height="86" rx="10" fill="#ffffff" stroke="#E5E7EB"/>
+    <text x="75" y="76" font-family="Geist, sans-serif" font-size="15" fill="#0A0A0A" text-anchor="middle">PDF page</text>
+    <text x="75" y="98" font-family="Geist Mono, monospace" font-size="11" fill="#71717A" text-anchor="middle">text layer + pixels</text>
+  </g>
+
+  <!-- split arrows -->
+  <g stroke="#71717A" stroke-width="1.5" fill="none">
+    <path d="M198 172 L240 172 L240 118 L282 118"/>
+    <path d="M198 200 L240 200 L240 256 L282 256"/>
+  </g>
+  <path d="M282 118 L274 113 L274 123 Z" fill="#71717A"/>
+  <path d="M282 256 L274 251 L274 261 Z" fill="#71717A"/>
+
+  <!-- top branch: model -->
+  <g transform="translate(290,78)">
+    <rect x="0" y="0" width="330" height="80" rx="10" fill="#ffffff" stroke="#1456f0"/>
+    <text x="20" y="30" font-family="Geist Mono, monospace" font-size="11" letter-spacing="1.4" fill="#1456f0">RENDERED IMAGE → LAYOUT MODEL</text>
+    <text x="20" y="56" font-family="Geist, sans-serif" font-size="15" fill="#0A0A0A">Table Transformer · 220 MB · CPU-viable</text>
+    <text x="20" y="72" font-family="Geist Mono, monospace" font-size="11" fill="#71717A">outputs rows, columns, spans</text>
+  </g>
+
+  <!-- bottom branch: parser -->
+  <g transform="translate(290,216)">
+    <rect x="0" y="0" width="330" height="80" rx="10" fill="#ffffff" stroke="#E5E7EB"/>
+    <text x="20" y="30" font-family="Geist Mono, monospace" font-size="11" letter-spacing="1.4" fill="#71717A">TEXT LAYER → PDFTABLE</text>
+    <text x="20" y="56" font-family="Geist, sans-serif" font-size="15" fill="#0A0A0A">exact glyphs, exact coordinates</text>
+    <text x="20" y="72" font-family="Geist Mono, monospace" font-size="11" fill="#71717A">deterministic, offline, no model</text>
+  </g>
+
+  <!-- join -->
+  <g stroke="#71717A" stroke-width="1.5" fill="none">
+    <path d="M620 118 L662 118 L662 187 L704 187"/>
+    <path d="M620 256 L662 256 L662 187"/>
+  </g>
+  <path d="M704 187 L696 182 L696 192 Z" fill="#71717A"/>
+
+  <!-- join box -->
+  <g transform="translate(712,132)">
+    <rect x="0" y="0" width="340" height="110" rx="10" fill="#0A0A0A"/>
+    <text x="20" y="30" font-family="Geist Mono, monospace" font-size="11" letter-spacing="1.4" fill="#71717A">STRATEGY EXPLICIT — ALREADY IN THE API</text>
+    <g font-family="Geist Mono, monospace" font-size="12.5" fill="#e6e6e6">
+      <text x="20" y="56">ExplicitVerticalLines   = cols</text>
+      <text x="20" y="76">ExplicitHorizontalLines = rows</text>
+      <text x="20" y="96" fill="#ea5ec1">MergeSplitTokens        = false</text>
+    </g>
+  </g>
+
+  <!-- output -->
+  <g transform="translate(712,272)">
+    <rect x="0" y="0" width="340" height="76" rx="10" fill="#ffffff" stroke="#1456f0"/>
+    <text x="20" y="30" font-family="Geist Mono, monospace" font-size="11" letter-spacing="1.4" fill="#1456f0">OUTPUT</text>
+    <text x="20" y="54" font-family="Geist, sans-serif" font-size="14" fill="#0A0A0A">cell text + per-cell bbox → citations</text>
+  </g>
+  <line x1="882" y1="242" x2="882" y2="266" stroke="#71717A" stroke-width="1.5"/>
+  <path d="M882 272 L877 264 L887 264 Z" fill="#71717A"/>
+
+  <!-- why not one model -->
+  <g transform="translate(48,392)">
+    <rect x="0" y="0" width="490" height="168" rx="10" fill="#ffffff" stroke="#E5E7EB"/>
+    <text x="24" y="32" font-family="Geist Mono, monospace" font-size="11" letter-spacing="1.6" fill="#71717A">WHY NOT LET A VLM DO ALL OF IT</text>
+    <g font-family="Geist, sans-serif" font-size="14" fill="#3F3F46">
+      <text x="24" y="64">A generative model emits tokens, not coordinates.</text>
+      <text x="24" y="88">No coordinates means no citation highlighting —</text>
+      <text x="24" y="112">and no way to point at the page an answer came from.</text>
+      <text x="24" y="144" fill="#ea5ec1">A hallucinated digit is also unbounded and unfixable.</text>
+    </g>
+  </g>
+
+  <g transform="translate(562,392)">
+    <rect x="0" y="0" width="490" height="168" rx="10" fill="#ffffff" stroke="#E5E7EB"/>
+    <text x="24" y="32" font-family="Geist Mono, monospace" font-size="11" letter-spacing="1.6" fill="#71717A">WHERE THE VLM DOES BELONG</text>
+    <g font-family="Geist, sans-serif" font-size="14" fill="#3F3F46">
+      <text x="24" y="64">Scanned pages have no text layer at all.</text>
+      <text x="24" y="88">Geometry has nothing to work with, so OCR is the</text>
+      <text x="24" y="112">only option — GLM-OCR, 2.5 GB, on a GPU endpoint.</text>
+      <text x="24" y="144" fill="#1456f0">Two models, invoked on different documents.</text>
+    </g>
+  </g>
+</svg>

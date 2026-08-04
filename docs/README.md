@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | [`evaluations/`](evaluations/) | dated accuracy findings — what was measured, against what, and what it does not prove |
+| [`blog/`](blog/) | a seven-part written account of the project, for readers rather than maintainers |
 
 User-facing documentation lives in the root [`README.md`](../README.md);
 release history in [`CHANGELOG.md`](../CHANGELOG.md).

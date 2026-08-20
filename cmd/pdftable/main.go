@@ -96,23 +96,23 @@ Documentation: https://github.com/hallelx2/pdftable`)
 
 // extractFlags is the parsed flag set for the extract subcommand.
 type extractFlags struct {
-	pages                    string
-	tables                   bool
-	text                     bool
-	format                   string
-	verticalStrategy         string
-	horizontalStrategy       string
-	snapTolerance            float64
-	joinTolerance            float64
-	edgeMinLength            float64
-	edgeMinLengthPrefilter   float64
-	intersectionTolerance    float64
-	textTolerance            float64
-	minWordsVertical         int
-	minWordsHorizontal       int
-	explicitVerticalLines    string
-	explicitHorizontalLines  string
-	indent                   int
+	pages                   string
+	tables                  bool
+	text                    bool
+	format                  string
+	verticalStrategy        string
+	horizontalStrategy      string
+	snapTolerance           float64
+	joinTolerance           float64
+	edgeMinLength           float64
+	edgeMinLengthPrefilter  float64
+	intersectionTolerance   float64
+	textTolerance           float64
+	minWordsVertical        int
+	minWordsHorizontal      int
+	explicitVerticalLines   string
+	explicitHorizontalLines string
+	indent                  int
 }
 
 // runExtract parses extract-subcommand args, opens the PDF, and
@@ -369,16 +369,16 @@ type tablesOutput struct {
 }
 
 type pageTablesOutput struct {
-	Number int            `json:"number"`
-	Width  float64        `json:"width"`
-	Height float64        `json:"height"`
-	Tables []tableOutput  `json:"tables"`
+	Number int           `json:"number"`
+	Width  float64       `json:"width"`
+	Height float64       `json:"height"`
+	Tables []tableOutput `json:"tables"`
 }
 
 type tableOutput struct {
-	BBox     [4]float64    `json:"bbox"`
-	Rows     [][]string    `json:"rows"`
-	Cells    [][][4]float64 `json:"cells"`
+	BBox  [4]float64     `json:"bbox"`
+	Rows  [][]string     `json:"rows"`
+	Cells [][][4]float64 `json:"cells"`
 }
 
 // emitTables runs ExtractTables on each requested page and writes the

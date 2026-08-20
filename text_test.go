@@ -399,8 +399,8 @@ func TestExpandLigatures(t *testing.T) {
 		"ﬄ": "ffl",
 		"ﬅ": "st",
 		"ﬆ": "st",
-		"A":      "A", // pass-through
-		"":       "", // pass-through
+		"A": "A", // pass-through
+		"":  "",  // pass-through
 	}
 	for in, want := range cases {
 		if got := expandLigatures(in); got != want {

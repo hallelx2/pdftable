@@ -46,7 +46,7 @@ type Interpreter struct {
 	XObjects map[string]XObject
 
 	// Sink receives emitted events. The caller installs whatever
-	// implementation it likes — pdftable's Page uses a struct that
+	// implementation it likes — pdfgrab's Page uses a struct that
 	// accumulates Chars and paints into separate slices.
 	Sink Sink
 
@@ -62,7 +62,7 @@ type Interpreter struct {
 }
 
 // Sink receives high-level events from the content interpreter. It is
-// implemented by the page-builder in the parent package; per pdftable's
+// implemented by the page-builder in the parent package; per pdfgrab's
 // package boundary, this is the contract between the parser and the
 // public-API layer.
 type Sink interface {

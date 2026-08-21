@@ -23,12 +23,12 @@ One default changes behaviour for every existing caller — see
 
 - **`DefaultWordOpts()` now enables `UseExplicitSpaces`.** pdfplumber's
   `WordExtractor` ends a word *at* a whitespace glyph, before any gap
-  test runs; pdftable dropped spaces and re-inferred boundaries purely
+  test runs; pdfgrab dropped spaces and re-inferred boundaries purely
   from the gap. At small type that silently over-merges: an 8pt space is
   278/1000 × 8 = 2.22pt, under the 3pt `XTolerance`, so
   `Wim illegible 3,142 (16,048)` came back as one run while pdfplumber
   returned four words. Body type in real documents is routinely 8–9pt, so
-  this was not an edge case. With it on, pdftable matches pdfplumber
+  this was not an edge case. With it on, pdfgrab matches pdfplumber
   word-for-word and coordinate-for-coordinate across all 12 Latin
   standard fonts at 8/12/24pt. The low-level `WordExtractor` is
   unchanged and stays pdfplumber-exact.
@@ -38,7 +38,7 @@ One default changes behaviour for every existing caller — see
 - fix: standard-14 fonts now resolve to their true Adobe AFM advance
   widths. PDF 1.7 §9.6.2.2 lets those 14 fonts omit `/Widths` entirely,
   on the assumption that a consumer already knows their metrics —
-  pdftable did not, so every glyph in such a font fell through to a flat
+  pdfgrab did not, so every glyph in such a font fell through to a flat
   500/1000 guess. `i` and `m` came out the same width, and the error
   accumulated across a line into up to ~10pt of word-bbox drift. Since
   the `text` and `lines_strict` table strategies infer column boundaries
@@ -138,7 +138,7 @@ One default changes behaviour for every existing caller — see
 
 ### Evaluation
 
-First measurement of pdftable against a public dataset. Harness in
+First measurement of pdfgrab against a public dataset. Harness in
 [`bench/icdar2013`](bench/icdar2013/), write-ups in
 [`docs/evaluations/`](docs/evaluations/).
 
@@ -148,9 +148,9 @@ pdfplumber 0.11.9:
 
 | system | precision | recall | F1 |
 | --- | --- | --- | --- |
-| pdftable (`lines`) | 0.865 | 0.229 | **0.362** |
+| pdfgrab (`lines`) | 0.865 | 0.229 | **0.362** |
 | pdfplumber (`lines`) | 0.868 | 0.235 | **0.370** |
-| **pdftable + oracle boundaries** | **0.948** | **0.922** | **0.935** |
+| **pdfgrab + oracle boundaries** | **0.948** | **0.922** | **0.935** |
 
 Two conclusions:
 
@@ -159,7 +159,7 @@ Two conclusions:
   end-to-end gap is table *structure*, not text extraction — cell
   filling, coordinates and text fidelity are not the limiting factor. A
   layout model supplying row/column geometry converts almost the whole
-  gap, and pdftable keeps what a generative model cannot give: exact cell
+  gap, and pdfgrab keeps what a generative model cannot give: exact cell
   text and exact coordinates. Integration uses `StrategyExplicit` with
   `MergeSplitTokens = false`; leaving it on drops 0.935 to 0.726, because
   that setting exists to repair a geometric guess and there is nothing to
@@ -244,7 +244,7 @@ faster on densely-ruled pages.
 ## [0.3.0] - 2026-05-27
 
 Phase 1.3.D + 1.3.E — text and explicit table-finding strategies, the
-`pdftable` CLI. Completes pdfplumber parity for the four canonical
+`pdfgrab` CLI. Completes pdfplumber parity for the four canonical
 table strategies. The v0.2.x public API surface is unchanged; v0.3.0
 only widens what's valid in `TableSettings` and adds the new CLI
 binary, so existing callers compile and run as-is.
@@ -272,7 +272,7 @@ binary, so existing callers compile and run as-is.
   edges are derived independently then merged together for the
   intersection pipeline — no orientation-specific logic leaks
   between them.
-- `pdftable` CLI binary at `cmd/pdftable/`. Subcommand surface
+- `pdfgrab` CLI binary at `cmd/pdfgrab/`. Subcommand surface
   mirrors pdfplumber's: `extract <file.pdf> [flags]` with
   `--pages 1,3-5`, `--tables`, `--text`, `--format json|text`,
   `--vertical-strategy`, `--horizontal-strategy`, the full set of
@@ -281,7 +281,7 @@ binary, so existing callers compile and run as-is.
   Stdlib `flag` package only — no third-party CLI dependencies.
   Positional argument can appear before OR after flags
   (pdfplumber-style invocation). Tested via
-  `cmd/pdftable/main_test.go` against the existing golden fixtures.
+  `cmd/pdfgrab/main_test.go` against the existing golden fixtures.
 - New `layout.SourceText` enum value tagging edges produced by the
   text strategy. `layout.SourceExplicit` was already in place from
   v0.2.0; the explicit-strategy implementation now writes through
@@ -311,7 +311,7 @@ binary, so existing callers compile and run as-is.
   semantics of `MinWordsVertical` / `MinWordsHorizontal` and the
   Explicit*Lines slices.
 - README's "Tables" section restructured: side-by-side
-  pdfplumber→pdftable examples for all four strategies, plus a
+  pdfplumber→pdfgrab examples for all four strategies, plus a
   mixed-strategy snippet and a new "CLI" section.
 
 ### Known limitations
@@ -544,12 +544,12 @@ Initial release. Phase 1.3.A — content-stream primitives layer.
 - Type 3 fonts (their glyph procedures are themselves content streams).
 - Vertical writing mode.
 
-[Unreleased]: https://github.com/hallelx2/pdftable/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.5.0
-[0.4.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.4.0
-[0.3.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.3.1
-[0.3.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.3.0
-[0.2.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.2.0
-[0.1.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.1
-[0.1.0]: https://github.com/hallelx2/pdftable/releases/tag/v0.1.0
-[0.0.1]: https://github.com/hallelx2/pdftable/releases/tag/v0.0.1
+[Unreleased]: https://github.com/hallelx2/pdfgrab/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/hallelx2/pdfgrab/releases/tag/v0.5.0
+[0.4.0]: https://github.com/hallelx2/pdfgrab/releases/tag/v0.4.0
+[0.3.1]: https://github.com/hallelx2/pdfgrab/releases/tag/v0.3.1
+[0.3.0]: https://github.com/hallelx2/pdfgrab/releases/tag/v0.3.0
+[0.2.0]: https://github.com/hallelx2/pdfgrab/releases/tag/v0.2.0
+[0.1.1]: https://github.com/hallelx2/pdfgrab/releases/tag/v0.1.1
+[0.1.0]: https://github.com/hallelx2/pdfgrab/releases/tag/v0.1.0
+[0.0.1]: https://github.com/hallelx2/pdfgrab/releases/tag/v0.0.1
